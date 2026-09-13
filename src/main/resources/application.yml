@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: breakground
+  datasource:
+      url: jdbc:postgresql://localhost:5432/breakground
+      username: breakground
+      password: breakground
