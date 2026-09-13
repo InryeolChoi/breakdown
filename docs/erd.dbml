@@ -1,0 +1,55 @@
+Enum user_status {
+  ACTIVE
+  BANNED
+}
+
+Table Room {
+  id Integer [primary key]
+  name String
+  open_at time
+  close_at time 
+}
+
+Table Message {
+  id Integer [primary key]
+  room_id Integer [not null, ref: > Room.id]
+  anonymous_user_id Integer [not null, ref: > AnonymousUser.id]
+  content String
+  created_at timestamp
+}
+
+Table AnonymousUser {
+  id integer [primary key]
+  nickname text
+  created_at date
+  last_seen_at timestamp
+  status user_status
+}
+
+Table Report {
+  id Integer [primary key]
+  message_id Integer [ref: > Message.id, not null]
+  reporter_user_id Integer [not null, ref: > AnonymousUser.id]
+  reason text
+  created_at timestamp
+
+  indexes {
+    (message_id, reporter_user_id) [unique]
+  }
+}
+
+Table Game {
+  id Integer [primary key]
+  name text [not null]
+  created_at timestamp [not null]
+  active boolean [not null]
+}
+
+Table GamePlay {
+  id Integer [primary key]
+  anonymous_user_id Integer [ref: > AnonymousUser.id, not null]
+  game_id Integer [ref: > Game.id, not null]
+  score Integer [not null]
+  played_at timestamp [not null]
+}
+
