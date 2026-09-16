@@ -25,9 +25,10 @@ Spring Boot 실행과 로컬 PostgreSQL 연결까지 확인했고, 도메인 기
 - Spring MVC / JPA / Validation / Flyway 의존성 설정
 - Docker Compose로 PostgreSQL 실행
 - Makefile로 Docker 실행과 종료 관리
-- 아직 migration SQL, 엔티티, API는 없음
+- Flyway V1으로 Room 테이블 생성 및 로컬 적용 확인
+- Room 클래스에 필드와 getter 작성. JPA 매핑과 API는 아직 없음
 
-다음은 Flyway V1으로 Room 테이블을 만들고, Room 조회부터 구현한다.
+다음은 Room 클래스에 JPA 매핑을 추가하고, Room 조회부터 구현한다.
 이후 AnonymousUser와 Message를 추가할 예정이다.
 
 ## 기술
