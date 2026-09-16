@@ -1,6 +1,9 @@
 spring:
   application:
     name: breakground
+  jpa:
+    hibernate:
+      ddl-auto: validate
   datasource:
       url: jdbc:postgresql://localhost:5432/breakground
       username: breakground
