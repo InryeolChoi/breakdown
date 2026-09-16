@@ -26,9 +26,10 @@ Spring Boot 실행과 로컬 PostgreSQL 연결까지 확인했고, 도메인 기
 - Docker Compose로 PostgreSQL 실행
 - Makefile로 Docker 실행과 종료 관리
 - Flyway V1으로 Room 테이블 생성 및 로컬 적용 확인
-- Room 클래스에 필드와 getter 작성. JPA 매핑과 API는 아직 없음
+- Room 엔티티에 필드, getter, JPA 매핑 작성
+- Hibernate validate 설정과 기존 Spring 기동 테스트 통과. Repository와 API는 아직 없음
 
-다음은 Room 클래스에 JPA 매핑을 추가하고, Room 조회부터 구현한다.
+다음은 RoomRepository를 작성하고, Room 조회부터 구현한다.
 이후 AnonymousUser와 Message를 추가할 예정이다.
 
 ## 기술
@@ -87,6 +88,8 @@ DB 데이터 볼륨은 유지된다. Docker Desktop까지 종료하려면 `make 
 
 이 두 문서를 설계 기준으로 사용한다.
 정책이나 스키마를 바꾸면 문서도 같이 수정한다.
+
+학습 중 고민과 질문은 [개발 기록](docs/devlog/260917.md)에 남긴다.
 
 ## 개발 방향
 
