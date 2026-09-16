@@ -4,10 +4,12 @@ Enum user_status {
 }
 
 Table Room {
-  id Integer [primary key]
-  name String
-  open_at time
-  close_at time 
+  id integer [primary key, increment]
+  name varchar(10) [not null]
+  open_at time [not null]
+  close_at time [not null]
+
+  Note: '매일 반복되는 운영 시간. 자정을 넘는 구간을 허용하며 열림 여부는 Spring에서 판단한다.'
 }
 
 Table Message {

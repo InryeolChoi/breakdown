@@ -21,6 +21,8 @@
 - 점심/간식/저녁 방을 별도 테이블로 만들지 않고 Room row로 관리
 - open_at / close_at은 DB에 저장
 - 방이 열려 있는지 판단하는 로직은 Spring에서 처리
+- 자정을 넘는 운영 시간을 허용한다. 예: 23:00~02:00
+- open_at과 close_at이 같은 경우의 의미는 미정이다.
 
 ## Report
 - 신고 대상은 Message
