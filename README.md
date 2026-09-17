@@ -49,7 +49,7 @@ Redis는 필요해지면 검토하고, Kafka / RabbitMQ / Kubernetes / MSA는 �
 ## 로컬 실행
 
 JDK 21, Docker Desktop, Make가 필요하다.
-아래는 macOS 기준이다. 현재 Makefile은 `docker-compose` 명령을 사용하므로 해당 명령도 실행 가능해야 한다.
+아래는 macOS 기준이다. `docker compose`와 `docker desktop stop` 명령을 사용한다.
 로컬 5432 포트는 비어 있어야 한다.
 
 프로젝트 루트에서 DB를 실행한다.
@@ -79,6 +79,15 @@ make down
 ```
 
 DB 데이터 볼륨은 유지된다. Docker Desktop까지 종료하려면 `make fclean`을 사용한다.
+`make fclean`은 DB 정리가 성공해야 Desktop 종료로 넘어간다.
+Desktop 종료는 기본 30초까지 기다린다.
+Docker 준비와 Compose 명령에는 별도 시간 제한이 없다. 응답이 멈추면 Ctrl+C로 중단한 뒤 Docker 상태를 확인한다.
+
+`network ... not found` 오류가 나면 `make repair-db`로 DB 볼륨을 유지하면서 컨테이너만 재생성한다.
+이 명령은 실행 중인 DB도 재시작하므로 복구할 때만 사용한다.
+Desktop 자체가 멈춘 경우에는 다른 컨테이너 작업도 확인한 뒤 `docker desktop stop --force --timeout 30`으로 수동 강제 종료할 수 있다.
+강제 종료는 다른 프로젝트의 컨테이너에도 영향을 주므로 Makefile에서 자동 실행하지 않는다.
+
 `make reset-db`와 `make nuke-db`는 DB 데이터도 삭제한다.
 
 ## 설계 문서

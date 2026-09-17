@@ -1,54 +1,53 @@
 UNAME_S := $(shell uname -s)
+DOCKER_STOP_TIMEOUT ?= 30
+COMPOSE = docker compose
 
-.PHONY: all up down clean fclean nuke-db reset-db docker-start docker-stop wait-for-docker
+.PHONY: all up down clean fclean repair-db reset-db nuke-db docker-start docker-stop wait-for-docker
 
 all: up
 
-# Docker(엔진/Desktop)를 실행
 docker-start:
 ifeq ($(UNAME_S),Darwin)
 	@echo "Opening Docker Desktop..."
 	@open -a Docker
 else
-	@echo "Starting docker service..."
 	@sudo systemctl start docker
 endif
 
-# docker info가 성공할 때까지 대기 (Docker Desktop은 실행 후 데몬 준비까지 시간이 걸림)
-wait-for-docker:
-	@echo "Waiting for docker daemon..."
-	@until docker info > /dev/null 2>&1; do sleep 1; done
-	@echo "Docker daemon is ready."
+# 의존 관계로 순서를 보장한다. make -j에서도 시작 후 준비를 기다린다.
+wait-for-docker: docker-start
+	@echo "Waiting for Docker engine (Ctrl+C to cancel if stuck)..."
+	@until docker info >/dev/null 2>&1; do sleep 1; done
+	@echo "Docker engine is ready."
 
-# Docker(엔진/Desktop)를 종료
+up: wait-for-docker
+	@$(COMPOSE) up -d || { echo "DB startup failed. For network-not-found errors, run: make repair-db"; exit 1; }
+
+# 컨테이너만 재생성한다. 기존 DB 데이터 볼륨은 유지한다.
+repair-db: wait-for-docker
+	$(COMPOSE) up -d --force-recreate postgres
+
+down:
+	@$(COMPOSE) down || { echo "DB cleanup failed. Desktop shutdown was not attempted. Docker may have partially completed cleanup."; exit 1; }
+
+clean: down
+
+# down이 성공한 다음에만 종료 요청. 병렬 make에서도 순서를 보장한다.
+fclean: down
+	@$(MAKE) docker-stop
+
 docker-stop:
 ifeq ($(UNAME_S),Darwin)
-	@echo "Quitting Docker Desktop..."
-	@osascript -e 'quit app "Docker"'
+	@echo "Stopping Docker Desktop (up to $(DOCKER_STOP_TIMEOUT)s)..."
+	@docker desktop stop --timeout $(DOCKER_STOP_TIMEOUT) || { echo "Desktop did not stop. Check other workloads before manually running: docker desktop stop --force --timeout $(DOCKER_STOP_TIMEOUT)"; exit 1; }
 else
-	@echo "Stopping docker service..."
 	@sudo systemctl stop docker
 endif
 
-# make: Docker(Desktop) 실행 -> 데몬 대기 -> compose 기동
-up: docker-start wait-for-docker
-	docker-compose up -d
+# 아래 두 명령은 DB 데이터 볼륨도 삭제한다.
+reset-db: wait-for-docker
+	$(COMPOSE) down -v
+	$(COMPOSE) up -d
 
-# compose만 내리고 Docker는 유지
-down:
-	docker-compose down
-
-# make clean: compose 내리기 (볼륨 유지), Docker는 유지
-clean: down
-
-# make fclean: compose 내리기 (볼륨 유지) + Docker(Desktop) 종료
-fclean: down docker-stop
-
-# DB 볼륨을 삭제하고 다시 기동 (데이터 초기화용)
-reset-db:
-	docker-compose down -v
-	docker-compose up -d
-
-# DB 볼륨을 삭제만 하고 기동은 하지 않음 (위험한 작업임을 명시)
 nuke-db:
-	docker-compose down -v
+	$(COMPOSE) down -v
