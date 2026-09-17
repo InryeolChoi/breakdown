@@ -17,4 +17,12 @@ public class Room {
     private LocalTime openAt;
     @Column(name = "close_at", nullable = false)
     private LocalTime closeAt;
+
+    public boolean isOpen() {
+        LocalTime now = LocalTime.now();
+        if (openAt.compareTo(closeAt) < 0)
+            return now.isAfter(openAt) && now.isBefore(closeAt);
+        else
+            return now.isAfter(openAt) || now.isBefore(closeAt);
+    }
 }
