@@ -20,8 +20,8 @@ public class Room {
 
     public boolean isOpen(LocalTime now) {
         if (openAt.compareTo(closeAt) < 0)
-            return now.isAfter(openAt) && now.isBefore(closeAt);
+            return !now.isBefore(openAt) && now.isBefore(closeAt);
         else
-            return now.isAfter(openAt) || now.isBefore(closeAt);
+            return !now.isBefore(openAt) || now.isBefore(closeAt);
     }
 }

@@ -1,5 +1,6 @@
 package com.breakground.room;
 
+import com.breakground.room.dto.RoomResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,7 +14,7 @@ public class RoomController {
     private final RoomService roomService;
 
     @GetMapping("/rooms")
-    public List<Room> getRooms() {
+    public List<RoomResponse> getRooms() {
         LocalTime now = LocalTime.now();
         return roomService.findOpenRooms(now);
     }
