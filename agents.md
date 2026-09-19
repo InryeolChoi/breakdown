@@ -140,6 +140,14 @@ Redis는 실제 필요성이 생겼을 때만 도입.
 
 # AI Collaboration
 
+## Session Workflow and Devlog
+
+사용자가 "다시 시작해 보자", "계속 진행", 또는 그와 같은 작업 재개 의사를 표현하면, 모든 AI는 구현에 앞서 [`.agents/skills/breakground-session-start/SKILL.md`](.agents/skills/breakground-session-start/SKILL.md)를 읽고 따른다.
+
+이 규칙은 개발 환경 시작, 당일 devlog 생성·이어서 쓰기, 학습 질문과 답변의 자동 기록에 적용한다.
+
+사용자가 "오늘은 여기까지", "마무리하자", 또는 그와 같은 작업 종료 의사를 표현하면, 모든 AI는 [`.agents/skills/breakground-session-end/SKILL.md`](.agents/skills/breakground-session-end/SKILL.md)를 읽고 따른다. 이 규칙은 당일 devlog 마무리, `make fclean`, 변경 사항 커밋·GitHub 푸시에 적용한다.
+
 AI는 코드를 대신 작성하는 도구이기도 하지만,
 프로젝트 학습을 위해 다음 원칙을 우선한다.
 

@@ -19,9 +19,8 @@
 
 ## 다음에 할 일
 
-- Docker를 켠 상태에서 앱 또는 `./gradlew test`를 실행해 Flyway V2가 실제 DB에 적용되는지 확인
-- 초기 Room 데이터와 운영 시간을 정한 뒤, V3 migration으로 삽입
-- 초기 데이터가 준비되면 `GET /rooms`의 실제 응답과 시간대별 열림 여부를 확인
+- Flyway V1~V3 적용과 초기 Room 데이터 삽입을 확인
+- `GET /rooms`의 실제 응답과 시간대별 열림 여부를 확인
 - 그 뒤 AnonymousUser, Message 쪽으로 확장 검토
 
 ## 유지 중인 원칙

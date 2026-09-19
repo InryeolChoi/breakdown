@@ -5,6 +5,10 @@
 반드시 작업 전에 `AGENTS.md`를 읽고,
 그 내용을 우선 컨텍스트로 사용한다.
 
+사용자가 작업 재개 또는 종료를 요청한 경우에는 `AGENTS.md`가 가리키는
+`.agents/skills/breakground-session-start/SKILL.md` 또는
+`.agents/skills/breakground-session-end/SKILL.md`도 반드시 읽고 따른다.
+
 Claude-specific:
 - 구현 전에 설계 의도를 먼저 설명
 - 사용자가 직접 코드를 작성하려는 경우 전체 구현을 대신하지 말고 힌트/리뷰 중심
