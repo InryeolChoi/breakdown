@@ -34,6 +34,18 @@ public class Room {
     @Column(name = "weekend_open", nullable = false)
     private boolean weekendOpen;
 
+    public Room(String name, LocalTime openAt, LocalTime closeAt, boolean weekdayOpen, boolean weekendOpen)
+    {
+        this.name = name;
+        this.openAt = openAt;
+        this.closeAt = closeAt;
+        this.weekdayOpen = weekdayOpen;
+        this.weekendOpen = weekendOpen;
+    }
+
+    protected Room() {
+    }
+
     public boolean isOpen(LocalDateTime now) {
         LocalDate date = now.toLocalDate();
         LocalTime time = now.toLocalTime();
