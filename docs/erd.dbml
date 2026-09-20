@@ -8,8 +8,10 @@ Table Room {
   name varchar(10) [not null]
   open_at time [not null]
   close_at time [not null]
+  weekday_open boolean [not null]
+  weekend_open boolean [not null]
 
-  Note: '매일 반복되는 운영 시간. 자정을 넘는 구간을 허용하며 열림 여부는 Spring에서 판단한다.'
+  Note: '평일·주말 운영 여부와 반복 운영 시간. 자정을 넘는 구간을 허용하며 열림 여부는 Spring에서 판단한다.'
 }
 
 Table Message {
@@ -54,4 +56,3 @@ Table GamePlay {
   score Integer [not null]
   played_at timestamp [not null]
 }
-

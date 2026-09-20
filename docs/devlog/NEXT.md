@@ -16,11 +16,16 @@
   - 시작·종료 시각이 같은 24시간 방은 제공하지 않음
   - `V2__add_room_operating_time_constraint.sql`: `CHECK (open_at <> close_at)` 제약 추가
   - 자세한 Q&A: `docs/devlog/260919.md`
+- Room의 평일·주말 운영 정책 적용 (2026-09-20)
+  - `weekday_open`, `weekend_open`: Room이 평일·주말에 열리는지 저장
+  - V4가 기존 초기 Room 세 건을 평일 전용으로 설정
+  - `Room.isOpen(LocalDateTime now)`: 자정 통과 시 전날 운영 여부까지 판단
+  - 자세한 Q&A: `docs/devlog/260920.md`
 
 ## 다음에 할 일
 
-- Flyway V1~V3 적용과 초기 Room 데이터 삽입을 확인
-- `GET /rooms`의 실제 응답과 시간대별 열림 여부를 확인
+- Flyway V1~V4 적용, 초기 Room 데이터와 `/rooms` 흐름을 확인
+- Room의 요일·자정 통과 규칙을 검증할 의미 있는 테스트를 작성
 - 그 뒤 AnonymousUser, Message 쪽으로 확장 검토
 
 ## 유지 중인 원칙
