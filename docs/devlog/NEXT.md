@@ -28,9 +28,9 @@
 
 ## 다음에 할 일
 
-- AnonymousUser 정책을 ERD와 Flyway V5에 반영하고, `./gradlew test`로 Spring context/Flyway 적용을 확인
-- 다음은 `UserStatus` enum과 `AnonymousUser` JPA Entity를 구현하고, PostgreSQL named enum 및 필드 매핑을 확인
-- Entity가 검증되면 Repository → DTO → Service → Controller 순서로 생성·조회 API를 구현
+- AnonymousUser ERD, Flyway V5/V6, `UserStatus`, Entity, Repository를 구현하고 PostgreSQL 매핑을 검증
+- 다음은 요청·응답 DTO와 Service를 설계해 익명 사용자 생성 정책을 구현
+- 이후 Controller와 HTTP API 테스트를 추가하고 Postman으로 확인
 - 브라우저 cookie 식별은 API 수직 슬라이스가 끝난 뒤 토큰 발급·저장·만료 정책을 확정해 추가
 
 ## 유지 중인 원칙
