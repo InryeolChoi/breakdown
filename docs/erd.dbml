@@ -23,11 +23,11 @@ Table Message {
 }
 
 Table AnonymousUser {
-  id integer [primary key]
-  nickname text
-  created_at date
-  last_seen_at timestamp
-  status user_status
+  id integer [primary key, increment]
+  nickname varchar(10) [not null]
+  created_at date [not null]
+  last_seen_at timestamp [not null]
+  status user_status [not null, default: 'ACTIVE']
 }
 
 Table Report {

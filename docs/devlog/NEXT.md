@@ -21,12 +21,17 @@
   - V4가 기존 초기 Room 세 건을 평일 전용으로 설정
   - `Room.isOpen(LocalDateTime now)`: 자정 통과 시 전날 운영 여부까지 판단
   - 자세한 Q&A: `docs/devlog/260920.md`
+- Room 운영 규칙 단위 테스트 작성 (2026-09-21)
+  - 일반 구간의 시작 포함·종료 제외를 검증
+  - 자정 통과 방의 금요일 시작, 토요일 새벽 연장, 토요일 밤 차단을 검증
+  - 자세한 Q&A: `docs/devlog/260921.md`
 
 ## 다음에 할 일
 
-- Flyway V1~V4 적용, 초기 Room 데이터와 `/rooms` 흐름을 확인
-- Room의 요일·자정 통과 규칙을 검증할 의미 있는 테스트를 작성
-- 그 뒤 AnonymousUser, Message 쪽으로 확장 검토
+- AnonymousUser 정책을 ERD와 Flyway V5에 반영하고, `./gradlew test`로 Spring context/Flyway 적용을 확인
+- 다음은 `UserStatus` enum과 `AnonymousUser` JPA Entity를 구현하고, PostgreSQL named enum 및 필드 매핑을 확인
+- Entity가 검증되면 Repository → DTO → Service → Controller 순서로 생성·조회 API를 구현
+- 브라우저 cookie 식별은 API 수직 슬라이스가 끝난 뒤 토큰 발급·저장·만료 정책을 확정해 추가
 
 ## 유지 중인 원칙
 
