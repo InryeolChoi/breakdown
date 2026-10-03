@@ -29,8 +29,8 @@
 ## 다음에 할 일
 
 - AnonymousUser ERD, Flyway V5/V6, `UserStatus`, Entity, Repository를 구현하고 PostgreSQL 매핑을 검증
-- 다음은 요청·응답 DTO와 Service를 설계해 익명 사용자 생성 정책을 구현
-- 이후 Controller와 HTTP API 테스트를 추가하고 Postman으로 확인
+- 생성 Service와 Controller의 기본 연결을 만들었으므로, 다음은 JSON 생성 요청 DTO와 `@Valid` 길이 검증·오류 응답을 설계
+- Postman으로 닉네임 생략/입력/30자 초과 요청을 검증하고, 응답 DTO에 필요한 필드만 노출하는지 점검
 - 브라우저 cookie 식별은 API 수직 슬라이스가 끝난 뒤 토큰 발급·저장·만료 정책을 확정해 추가
 
 ## 유지 중인 원칙
