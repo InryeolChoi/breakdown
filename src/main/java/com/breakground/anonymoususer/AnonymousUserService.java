@@ -33,4 +33,5 @@ public class AnonymousUserService {
         AnonymousUser anonymousUser = new AnonymousUser(nickname, now.toLocalDate(), now);
         return anonymousUserRepository.save(anonymousUser);
     }
+
 }

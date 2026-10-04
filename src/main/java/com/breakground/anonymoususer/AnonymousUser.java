@@ -32,6 +32,9 @@ public class AnonymousUser {
     @Column(name = "last_seen_at", nullable = false)
     private LocalDateTime lastSeenAt;
 
+    @Column(name = "token_hash", length = 64, nullable = false, unique = true)
+    private String tokenHash;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "status", nullable = false)

@@ -28,6 +28,11 @@ Table AnonymousUser {
   created_at date [not null]
   last_seen_at timestamp [not null]
   status user_status [not null, default: 'ACTIVE']
+  token_hash varchar(64) [not null]
+
+  indexes {
+    (token_hash) [unique]
+  }
 }
 
 Table Report {
