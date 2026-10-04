@@ -14,14 +14,6 @@ Table Room {
   Note: '평일·주말 운영 여부와 반복 운영 시간. 자정을 넘는 구간을 허용하며 열림 여부는 Spring에서 판단한다.'
 }
 
-Table Message {
-  id Integer [primary key]
-  room_id Integer [not null, ref: > Room.id]
-  anonymous_user_id Integer [not null, ref: > AnonymousUser.id]
-  content String
-  created_at timestamp
-}
-
 Table AnonymousUser {
   id integer [primary key, increment]
   nickname varchar(30) [not null]
@@ -37,15 +29,24 @@ Table AnonymousUser {
 }
 
 Table Report {
-  id Integer [primary key]
-  message_id Integer [ref: > Message.id, not null]
-  reporter_user_id Integer [not null, ref: > AnonymousUser.id]
-  reason text
-  created_at timestamp
+  id integer [primary key, increment]
+  message_event_id uuid [not null]
+  reporter_user_id integer [not null, ref: > AnonymousUser.id]
+  reported_user_id integer [not null, ref: > AnonymousUser.id]
+  room_id integer [not null, ref: > Room.id]
+  reason varchar(500) [not null]
+  evidence_content varchar(140) [not null]
+  message_sent_at timestamp [not null]
+  created_at timestamp [not null]
+  evidence_expires_at timestamp [not null]
 
   indexes {
-    (message_id, reporter_user_id) [unique]
+    (reporter_user_id, message_event_id) [unique]
+    (evidence_expires_at)
+    (reported_user_id)
   }
+
+  Note: '신고 대상은 사용자. 서버 메모리 원본에서 복사한 메시지만 증거로 저장한다. 일반 Message 테이블은 없다.'
 }
 
 Table Game {

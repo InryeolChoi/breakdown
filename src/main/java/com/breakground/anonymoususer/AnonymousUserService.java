@@ -1,6 +1,8 @@
 package com.breakground.anonymoususer;
 
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -48,6 +50,25 @@ public class AnonymousUserService {
 
         existingUser.recordVisit(now);
         return new AnonymousUserSession(existingUser, rawToken);
+    }
+
+    // 메시지/신고 작성에서는 새 사용자를 만들지 않고 기존 쿠키를 검증한다.
+    @Transactional
+    public AnonymousUser requireActiveUser(String rawToken, LocalDateTime now) {
+        AnonymousUser user = findByToken(rawToken).orElseThrow(() ->
+                new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "익명 사용자를 먼저 준비해주세요."));
+        user.liftBanIfExpired(now);
+        if (user.isBanActiveAt(now)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "현재 차단된 사용자입니다.");
+        }
+        if (isExpired(user, now)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "익명 사용자 식별이 만료됐습니다.");
+        }
+        user.recordVisit(now);
+        return user;
     }
 
     private Optional<AnonymousUser> findByToken(String rawToken) {

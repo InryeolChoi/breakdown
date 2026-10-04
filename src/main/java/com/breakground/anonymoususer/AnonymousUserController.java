@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.servlet.http.HttpServletRequest;
 
-import java.time.Duration;
 
 @RestController
 @AllArgsConstructor
@@ -28,13 +27,7 @@ public class AnonymousUserController {
     ) {
         AnonymousUserSession session = anonymousUserService.getOrCreateAnonymousUser(
                 request.getNickname(), rawToken);
-        ResponseCookie cookie = ResponseCookie.from("anonymous_user_token", session.rawToken())
-                .httpOnly(true)
-                .secure(servletRequest.isSecure())
-                .sameSite("Lax")
-                .path("/")
-                .maxAge(Duration.ofDays(7))
-                .build();
+        ResponseCookie cookie = AnonymousUserCookies.create(session.rawToken(), servletRequest.isSecure());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(new AnonymousUserResponse(session.user()));

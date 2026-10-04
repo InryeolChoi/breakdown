@@ -67,6 +67,17 @@ public class Room {
         return time.isBefore(closeAt) && isOpenOn(date.minusDays(1));
     }
 
+    public LocalDateTime currentClosingTime(LocalDateTime now) {
+        if (!isOpen(now)) {
+            throw new IllegalStateException("닫힌 방에는 현재 운영 구간이 없습니다.");
+        }
+        LocalDate closingDate = now.toLocalDate();
+        if (openAt.isAfter(closeAt) && !now.toLocalTime().isBefore(openAt)) {
+            closingDate = closingDate.plusDays(1);
+        }
+        return closingDate.atTime(closeAt);
+    }
+
     private boolean isOpenOn(LocalDate date) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         boolean isWeekend = dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY;

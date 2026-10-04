@@ -72,4 +72,13 @@ public class RoomTest {
                 2026, 9, 26, 21, 0)));
     }
 
+    @Test
+    public void closingTimeFollowsOvernightOperatingPeriod() {
+        Room room = new Room("야근방", LocalTime.of(21, 0), LocalTime.of(2, 0), true, false);
+        LocalDateTime closing = LocalDateTime.of(2026, 9, 26, 2, 0);
+        org.junit.jupiter.api.Assertions.assertEquals(closing,
+                room.currentClosingTime(LocalDateTime.of(2026, 9, 25, 23, 0)));
+        org.junit.jupiter.api.Assertions.assertEquals(closing,
+                room.currentClosingTime(LocalDateTime.of(2026, 9, 26, 1, 0)));
+    }
 }

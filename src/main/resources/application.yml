@@ -8,3 +8,11 @@ spring:
       url: jdbc:postgresql://localhost:5432/breakground
       username: breakground
       password: breakground
+
+chat:
+  message-retention: 15m
+  max-buffered-messages: 10000
+  cleanup-interval-ms: 1000
+report:
+  evidence-retention: 30d
+  cleanup-interval-ms: 60000
