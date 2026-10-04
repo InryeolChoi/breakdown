@@ -14,6 +14,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Duration;
 
 @Entity
 @Table(name = "anonymous_user")
@@ -35,17 +36,44 @@ public class AnonymousUser {
     @Column(name = "token_hash", length = 64, nullable = false, unique = true)
     private String tokenHash;
 
+    @Column(name = "banned_until")
+    private LocalDateTime bannedUntil;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "status", nullable = false)
     private UserStatus status;
 
-    public AnonymousUser(String nickname, LocalDate createdAt, LocalDateTime lastSeenAt) {
+    public AnonymousUser(String nickname,
+                         LocalDate createdAt,
+                         LocalDateTime lastSeenAt,
+                         String tokenHash) {
         this.nickname = nickname;
         this.createdAt = createdAt;
         this.lastSeenAt = lastSeenAt;
         this.status = UserStatus.ACTIVE;
+        this.tokenHash = tokenHash;
     }
 
     protected AnonymousUser() {}
+
+    public void recordVisit(LocalDateTime now) {
+        lastSeenAt = now;
+    }
+
+    public void banForOneWeek(LocalDateTime now) {
+        status = UserStatus.BANNED;
+        bannedUntil = now.plus(Duration.ofDays(7));
+    }
+
+    public boolean isBanActiveAt(LocalDateTime now) {
+        return status == UserStatus.BANNED && now.isBefore(bannedUntil);
+    }
+
+    public void liftBanIfExpired(LocalDateTime now) {
+        if (status == UserStatus.BANNED && !now.isBefore(bannedUntil)) {
+            status = UserStatus.ACTIVE;
+            bannedUntil = null;
+        }
+    }
 }

@@ -29,6 +29,7 @@ Table AnonymousUser {
   last_seen_at timestamp [not null]
   status user_status [not null, default: 'ACTIVE']
   token_hash varchar(64) [not null]
+  banned_until timestamp [null]
 
   indexes {
     (token_hash) [unique]

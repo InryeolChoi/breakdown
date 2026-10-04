@@ -26,14 +26,22 @@
   - 자정 통과 방의 금요일 시작, 토요일 새벽 연장, 토요일 밤 차단을 검증
   - 자세한 Q&A: `docs/devlog/260921.md`
 
-## 다음에 할 일
+## AnonymousUser 완료 범위
 
-- AnonymousUser Entity, Repository, 생성 Service, JSON 요청·응답 DTO, Controller까지 구현했고 PostgreSQL 저장과 MVC 요청 검증 테스트가 통과
-- 사용자 정의 검증 오류 응답을 ControllerAdvice에서 구현 중이며, Postman에서 31자 입력 시 한국어 오류 메시지가 오는지 다시 확인
-- `AnonymousUserResponse`가 브라우저에 필요한 값만 반환하는지 검토
-- 같은 브라우저 재방문 식별을 구현: 무작위 토큰 cookie, DB에는 해시 저장, 마지막 방문 후 7일 비활성 만료
-- 구현 전에 7일 비활성 만료 외에 토큰의 절대 만료 또는 교체가 필요한지 결정하고, 쓰기 API에서 클라이언트의 사용자 id를 신뢰하지 않는 규칙을 확정
-- ERD에 브라우저 식별 hash를 반영한 뒤 Flyway V7을 작성하고 Entity/Repository/Service/Controller에 연결
+- 생성·재방문 API, 선택 입력 닉네임 검증과 한국어 오류 응답 구현
+- 쿠키 원문 토큰은 브라우저에, SHA-256 해시는 DB에 저장
+- 마지막 방문 후 7일 비활성 만료, 유효한 재방문 시 방문 시각과 쿠키 만료 갱신
+- V8의 banned_until과 7일 임시 차단 구현; 초기화 API는 차단 사용자 정보를 반환
+- 전체 테스트 24개 통과 (2026-10-05)
+- 운영 전 토큰 절대 만료/교체 및 프록시 뒤 HTTPS 쿠키 설정 검토는 남음
+
+## 다음에 할 일 — Message
+
+1. 사용자가 ERD Message의 컬럼 타입·NOT NULL·identity/FK를 구체화하고 `V9__create_message.sql`을 작성한다. 현재 Message는 ERD 초안에만 있고 실제 테이블은 없다.
+2. Message Entity/Repository를 만든 뒤, HTTP 메시지 작성·조회 API로 DB 저장과 도메인 규칙을 먼저 확인한다.
+3. 작성자는 요청 본문의 user id가 아니라 서버가 쿠키 토큰을 검증해 찾는다. 닫힌 방, 차단된 사용자, 잘못된 내용의 메시지 작성을 거절한다.
+4. 방이 닫힐 때 메시지를 삭제하는 정책과 재개방 시 과거 내용이 보이지 않는 동작을 구현·검증한다.
+5. 그 뒤 WebSocket으로 실시간 전달을 추가한다. 작성 검증·저장 로직은 Service에서 재사용한다.
 
 ## 유지 중인 원칙
 
