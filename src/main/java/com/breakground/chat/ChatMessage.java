@@ -3,7 +3,11 @@ package com.breakground.chat;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-// 일반 메시지는 DB Entity가 아니라 실행 중인 서버의 메모리에만 존재한다.
+// HTTP 응답과 신고 증거 복사에 사용하는 불변 스냅샷. DB Entity와 구분한다.
 public record ChatMessage(UUID id, Integer roomId, Integer authorId, String nickname,
                           String content, LocalDateTime sentAt, LocalDateTime expiresAt) {
+    public static ChatMessage from(Message message) {
+        return new ChatMessage(message.getId(), message.getRoom().getId(), message.getAuthor().getId(),
+                message.getNickname(), message.getContent(), message.getSentAt(), message.getExpiresAt());
+    }
 }

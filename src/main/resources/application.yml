@@ -10,9 +10,9 @@ spring:
       password: breakground
 
 chat:
-  message-retention: 15m
-  max-buffered-messages: 10000
-  cleanup-interval-ms: 1000
+  reportable-duration: 15m
+  deletion-delay: 10m
+  cleanup-interval-ms: 60000
 report:
   evidence-retention: 30d
   cleanup-interval-ms: 60000

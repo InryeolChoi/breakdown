@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Component
 public class ReportCleanup {
@@ -18,6 +19,6 @@ public class ReportCleanup {
     @Scheduled(fixedDelayString = "${report.cleanup-interval-ms:60000}")
     @Transactional
     public void removeExpired() {
-        reports.deleteExpired(LocalDateTime.now(clock));
+        reports.deleteExpired(LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS));
     }
 }

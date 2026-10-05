@@ -1,6 +1,6 @@
 # Message DB 임시 보관 — 검토 초안
 
-상태: 2026-10-05 Q1~Q7 사용자 합의 완료. 이 문서는 검토 이력이며 최신 확정 정책은 [decisions.md](../decisions.md), 목표 ERD는 [erd.dbml](../erd.dbml)을 따른다. V10은 2026-10-06 로컬 DB에 적용되었고 Java 저장 경로는 아직 Map 방식이다.
+상태: 2026-10-05 Q1~Q7 합의, 2026-10-06 V10 및 Java 저장/신고/정리 경로 전환 완료. 이 문서는 검토 이력이며 최신 정책은 [decisions.md](../decisions.md), ERD는 [erd.dbml](../erd.dbml)을 따른다.
 
 ## 설계 트리
 

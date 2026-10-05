@@ -88,7 +88,7 @@ Redis는 실제 필요성이 생겼을 때만 도입.
 - BANNED
 
 ## Message
-특정 Room에서 AnonymousUser가 작성한 메시지. Message 테이블에 임시 보관하는 설계로 전환한다.
+특정 Room에서 AnonymousUser가 작성한 메시지. Message 테이블에 임시 보관한다.
 
 정책:
 - 최대 140자
@@ -133,7 +133,7 @@ Redis는 실제 필요성이 생겼을 때만 도입.
 
 # Design Principles
 
-Message DB 저장은 합의한 목표 설계이며 현재 실행 코드는 아직 Map 방식이다. 구현 진행 상태는 `docs/devlog/NEXT.md`를 확인한다.
+구현 진행 상태와 다음 학습 지점은 `docs/devlog/NEXT.md`를 확인한다.
 
 1. 기능을 넣기 위해 기술을 억지로 사용하지 않는다.
 2. Redis 등은 실제 문제가 생겼을 때 도입한다.

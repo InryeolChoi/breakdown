@@ -1,12 +1,16 @@
 package com.breakground.report;
 
 import com.breakground.anonymoususer.*;
-import com.breakground.chat.RecentMessageStore;
+import com.breakground.chat.ChatMessage;
+import com.breakground.chat.Message;
+import com.breakground.chat.MessageCleanup;
+import com.breakground.chat.MessageRepository;
 import com.breakground.room.Room;
 import com.breakground.room.RoomRepository;
 import com.breakground.support.MutableClock;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +47,9 @@ class ChatReportIntegrationTest {
     @Autowired RoomRepository rooms;
     @Autowired AnonymousUserService users;
     @Autowired ReportRepository reports;
-    @Autowired RecentMessageStore messages;
+    @Autowired MessageRepository messages;
+    @Autowired MessageCleanup messageCleanup;
+    @Autowired EntityManager entityManager;
     @Autowired ReportCleanup cleanup;
     @Autowired MutableClock clock;
     private final LocalDateTime now = LocalDateTime.of(2026, 10, 5, 10, 30);
@@ -63,7 +69,7 @@ class ChatReportIntegrationTest {
     }
 
     @Test
-    void savesOnlyServerVerifiedEvidenceAndKeepsItAfterBufferExpiry() throws Exception {
+    void savesOnlyServerVerifiedEvidenceAndKeepsItAfterOriginalDeletion() throws Exception {
         UUID messageId = send("서버원본");
         String json = mvc.perform(post("/rooms/{id}/reports", room.getId())
                         .cookie(cookie(reporter)).contentType(MediaType.APPLICATION_JSON)
@@ -78,8 +84,14 @@ class ChatReportIntegrationTest {
         assertEquals(room.getId(), saved.getRoom().getId());
         assertEquals(now.plusDays(30), saved.getEvidenceExpiresAt());
         clock.set(now.plusMinutes(15));
-        assertTrue(messages.find(messageId).isEmpty());
+        assertTrue(messages.findByIdAndExpiresAtGreaterThan(messageId, now.plusMinutes(15)).isEmpty());
+        assertTrue(messages.findById(messageId).isPresent());
+        clock.set(now.withHour(11).withMinute(10));
+        messageCleanup.removeReadyForCleanup();
+        entityManager.clear();
+        assertTrue(messages.findById(messageId).isEmpty());
         assertTrue(reports.findById(reportId).isPresent());
+        assertEquals("서버원본", reports.findById(reportId).orElseThrow().getEvidenceContent());
     }
 
     @Test
@@ -104,9 +116,9 @@ class ChatReportIntegrationTest {
     void roomClosingEndsEvidenceLifetimeAndNextOpeningCannotReviveIt() throws Exception {
         clock.set(now.withHour(10).withMinute(59));
         UUID messageId = send("마감직전");
-        assertEquals(now.withHour(11).withMinute(0), messages.find(messageId).orElseThrow().expiresAt());
+        assertEquals(now.withHour(11).withMinute(0), messages.findById(messageId).orElseThrow().getExpiresAt());
         clock.set(now.withHour(11).withMinute(0));
-        assertTrue(messages.find(messageId).isEmpty());
+        assertTrue(messages.findByIdAndExpiresAtGreaterThan(messageId, now.withHour(11).withMinute(0)).isEmpty());
         report(messageId, reporter, 403);
         clock.set(now.plusDays(1));
         report(messageId, reporter, 410);
@@ -128,8 +140,12 @@ class ChatReportIntegrationTest {
     void contentIsValidatedAndWriterComesFromCookie() throws Exception {
         sendExpecting(" ", 400);
         sendExpecting("가".repeat(141), 400);
+        mvc.perform(post("/rooms/{id}/messages", room.getId())
+                        .cookie(cookie(author)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"\\u0000\"}"))
+                .andExpect(status().isBadRequest());
         UUID messageId = send("😀".repeat(140));
-        assertEquals(140, messages.find(messageId).orElseThrow().content().codePointCount(0, 280));
+        assertEquals(140, messages.findById(messageId).orElseThrow().getContent().codePointCount(0, 280));
         report(messageId, reporter, 201);
         String body = mvc.perform(post("/rooms/{id}/messages", room.getId())
                         .cookie(cookie(author)).contentType(MediaType.APPLICATION_JSON)
@@ -158,7 +174,7 @@ class ChatReportIntegrationTest {
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         Integer reportId = JsonPath.read(response, "$.id");
         // PostgreSQL timestamp의 정밀도는 마이크로초다.
-        clock.set(now.plusDays(30).minusNanos(1000));
+        clock.set(now.plusDays(30).minusNanos(100));
         cleanup.removeExpired();
         assertTrue(reports.existsById(reportId));
         clock.set(now.plusDays(30));
@@ -171,7 +187,7 @@ class ChatReportIntegrationTest {
         UUID messageId = send("원본");
         report(messageId, reporter, 201);
         Report duplicate = new Report(reporter.user(), author.user(), room,
-                messages.find(messageId).orElseThrow(), "반복신고", now, now.plusDays(30));
+                ChatMessage.from(messages.findById(messageId).orElseThrow()), "반복신고", now, now.plusDays(30));
         assertThrows(DataIntegrityViolationException.class, () -> reports.saveAndFlush(duplicate));
     }
 
@@ -186,13 +202,69 @@ class ChatReportIntegrationTest {
                         .cookie(cookie(reporter)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"messageId\":\"" + id + "\",\"reason\":\" \"}"))
                 .andExpect(status().isBadRequest());
+        mvc.perform(post("/rooms/{id}/reports", room.getId())
+                        .cookie(cookie(reporter)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageId\":\"" + id + "\",\"reason\":\"욕설\\u0000\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @AfterTransaction
-    void rollbackAlsoRemovesMessagesFromTheBuffer() {
+    void testRollbackAlsoRemovesMessagesFromPostgres() {
         for (UUID id : sentIds) {
-            assertTrue(messages.find(id).isEmpty(), "롤백된 메시지가 메모리에 남아 있으면 안 된다.");
+            assertFalse(messages.existsById(id), "롤백된 메시지가 DB에 남아 있으면 안 된다.");
         }
+    }
+
+    @Test
+    void cleanupWaitsUntilTenMinutesAfterRoomClosing() throws Exception {
+        UUID messageId = send("만료되어도 삭제 기한까지 보관");
+        clock.set(now.plusMinutes(15));
+        messageCleanup.removeReadyForCleanup();
+        entityManager.clear();
+        assertTrue(messages.findById(messageId).isPresent());
+        clock.set(now.withHour(11).withMinute(10).minusNanos(100));
+        messageCleanup.removeReadyForCleanup();
+        assertTrue(messages.existsById(messageId));
+        clock.set(now.withHour(11).withMinute(10));
+        messageCleanup.removeReadyForCleanup();
+        entityManager.clear();
+        assertFalse(messages.existsById(messageId));
+    }
+
+    @Test
+    void overnightMessagesShareTheOriginalOperatingPeriodsDeletionTime() throws Exception {
+        // 금요일 밤과 토요일 새벽 모두 금요일 운영 구간에 속한다.
+        room = rooms.saveAndFlush(new Room("야근테스트방", LocalTime.of(21, 0),
+                LocalTime.of(2, 0), true, false));
+        LocalDateTime friday = LocalDateTime.of(2026, 10, 9, 23, 50);
+        clock.set(friday);
+        UUID beforeMidnight = send("금요일 밤");
+        clock.set(friday.plusMinutes(20));
+        UUID afterMidnight = send("토요일 새벽");
+        LocalDateTime closing = LocalDateTime.of(2026, 10, 10, 2, 0);
+
+        assertEquals(closing.plusMinutes(10), messages.findById(beforeMidnight).orElseThrow().getDeleteAfter());
+        assertEquals(closing.plusMinutes(10), messages.findById(afterMidnight).orElseThrow().getDeleteAfter());
+        clock.set(closing);
+        sendExpecting("닫힌 방", 403);
+        clock.set(closing.plusMinutes(10));
+        messageCleanup.removeReadyForCleanup();
+        entityManager.clear();
+        assertFalse(messages.existsById(beforeMidnight));
+        assertFalse(messages.existsById(afterMidnight));
+    }
+
+    @Test
+    void subMicrosecondClockNearClosingDoesNotRoundSentTimeUpToExpiration() throws Exception {
+        LocalDateTime closing = now.withHour(11).withMinute(0);
+        clock.set(closing.minusNanos(100));
+        UUID id = send("닫히기 직전");
+        messages.flush();
+        entityManager.clear();
+        Message loaded = messages.findById(id).orElseThrow();
+        assertEquals(closing.minusNanos(1000), loaded.getSentAt());
+        assertEquals(closing, loaded.getExpiresAt());
+        assertEquals(closing.plusMinutes(10), loaded.getDeleteAfter());
     }
 
     private UUID send(String text) throws Exception {

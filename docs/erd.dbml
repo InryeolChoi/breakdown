@@ -1,4 +1,4 @@
-// 목표 ERD: Message DB 전환 합의(2026-10-05). 로컬 V10 적용 완료(2026-10-06), Java 전환은 아직 미완료.
+// Message DB 전환 합의(2026-10-05), 로컬 V10 및 Java 저장/신고/정리 경로 전환 완료(2026-10-06).
 Enum user_status {
   ACTIVE
   BANNED

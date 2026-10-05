@@ -1,5 +1,5 @@
 // Q1~Q7 합의 후 검토 기록. 최신 목표 ERD는 docs/erd.dbml을 따른다.
-// 실제 DB/Java 전환은 아직 미적용. 검토 과정은 message-db-proposal.md 참고.
+// 실제 DB/Java 전환 완료(2026-10-06). 검토 과정은 message-db-proposal.md 참고.
 Enum user_status {
   ACTIVE
   BANNED
