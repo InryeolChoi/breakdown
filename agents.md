@@ -10,7 +10,7 @@
 - 시간대별 채팅방
 - 짧은 미니게임
 - 잠깐 즐기고 나가는 서비스
-- 일반 메시지는 DB에 보존하지 않고 신고 증거만 제한된 기간 보관
+- 일반 메시지는 DB에 임시 보관하고 신고 증거는 별도 기한으로 보관
 
 # Goal
 
@@ -74,7 +74,7 @@ Redis는 실제 필요성이 생겼을 때만 도입.
 - 간식방
 - 퇴근방
 
-방이 닫히면 해당 방의 메시지는 삭제.
+방이 닫히면 메시지의 신고 가능 기한이 종료된다. 원본 삭제 기한은 운영 구간 종료 10분 후다.
 
 ## AnonymousUser
 로그인은 없지만 동일 브라우저를 구분하기 위한 익명 사용자.
@@ -88,13 +88,13 @@ Redis는 실제 필요성이 생겼을 때만 도입.
 - BANNED
 
 ## Message
-특정 Room에서 AnonymousUser가 작성한 메시지. 서버 메모리의 Java 객체로 표현한다.
+특정 Room에서 AnonymousUser가 작성한 메시지. Message 테이블에 임시 보관하는 설계로 전환한다.
 
 정책:
 - 최대 140자
 - 수정 불가
 - 삭제 불가
-- 임시 보관 이후 또는 방 종료 시 만료
+- 신고 가능 기한과 원본 삭제 기한은 구분
 - 구체 정책은 `docs/decisions.md`를 따른다.
 
 ## Report
@@ -125,11 +125,15 @@ Redis는 실제 필요성이 생겼을 때만 도입.
 
 - Room 1:N Report
 - AnonymousUser 1:N Report (신고자/신고 대상 각각)
-- 일반 Message는 DB 테이블이 없음
+- Room 1:N Message
+- AnonymousUser 1:N Message
+- Report는 원본 UUID와 증거를 복사하며 Message FK를 두지 않음
 - Game 1:N GamePlay
 - AnonymousUser 1:N GamePlay
 
 # Design Principles
+
+Message DB 저장은 합의한 목표 설계이며 현재 실행 코드는 아직 Map 방식이다. 구현 진행 상태는 `docs/devlog/NEXT.md`를 확인한다.
 
 1. 기능을 넣기 위해 기술을 억지로 사용하지 않는다.
 2. Redis 등은 실제 문제가 생겼을 때 도입한다.

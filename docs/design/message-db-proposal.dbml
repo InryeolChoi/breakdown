@@ -1,4 +1,5 @@
-// 목표 ERD: Message DB 전환 합의(2026-10-05). 로컬 V10 적용 완료(2026-10-06), Java 전환은 아직 미완료.
+// Q1~Q7 합의 후 검토 기록. 최신 목표 ERD는 docs/erd.dbml을 따른다.
+// 실제 DB/Java 전환은 아직 미적용. 검토 과정은 message-db-proposal.md 참고.
 Enum user_status {
   ACTIVE
   BANNED
@@ -30,25 +31,25 @@ Table AnonymousUser {
 }
 
 Table Message {
-  id uuid [primary key, not null, note: '서버가 생성하는 메시지 UUID']
+  id uuid [primary key, not null, note: '서버가 생성하는 메시지 UUID. 기존 API messageId와 동일한 역할.']
   room_id integer [not null, ref: > Room.id]
   anonymous_user_id integer [not null, ref: > AnonymousUser.id]
-  nickname varchar(30) [not null, note: '작성 당시 닉네임']
+  nickname varchar(30) [not null, note: '작성 당시 닉네임 복사. 현재 ChatMessage 응답 의미 유지.']
   content varchar(140) [not null]
-  sent_at timestamp [not null]
-  expires_at timestamp [not null, note: '신고 가능 기한: 작성 후 15분과 해당 방 운영 구간 종료 중 빠른 시각']
-  delete_after timestamp [not null, note: '해당 방 운영 구간 종료 + 10분']
+  sent_at timestamp [not null, note: '현재 프로젝트와 동일한 서울 기준 LocalDateTime.']
+  expires_at timestamp [not null, note: '신고 가능 기한: 작성 후 15분과 해당 운영 구간 종료 중 빠른 시각.']
+  delete_after timestamp [not null, note: '해당 방 운영 구간 종료 + 10분. 실제 삭제의 기준 시각.']
 
   indexes {
     (delete_after)
   }
 
-  Note: '과거 대화 목록 API는 없음. 신고 가능 기한과 실제 삭제 기한을 구분한다. 삭제 대상은 1분 간격 작업에서 정리. 시간 CHECK와 공백 검증은 V10에서 구현.'
+  Note: '합의한 DB 임시 보관 설계. 신고 가능 기한과 실제 삭제 기한을 분리하고 삭제 대상은 1분 간격 정리. 과거 대화 목록 API 없음. 시간 CHECK와 공백 검증은 V10에서 구현.'
 }
 
 Table Report {
   id integer [primary key, increment]
-  message_event_id uuid [not null, note: '원본 Message UUID 복사. 원본 삭제 후 증거를 유지하기 위해 Message FK 없음.']
+  message_event_id uuid [not null, note: '원본 Message.id를 복사한 추적 식별자. 의도적으로 Message 외래 키를 걸지 않음.']
   reporter_user_id integer [not null, ref: > AnonymousUser.id]
   reported_user_id integer [not null, ref: > AnonymousUser.id]
   room_id integer [not null, ref: > Room.id]
@@ -64,7 +65,7 @@ Table Report {
     (reported_user_id)
   }
 
-  Note: '신고 대상은 사용자. 유효한 Message 원본에서 복사한 증거를 신고 후 30일 보관한다. 원본 삭제와 독립적.'
+  Note: '신고 대상은 사용자. 유효한 DB Message 원본을 복사해 증거를 30일 보관하는 제안. 원본 삭제와 독립된 증거이며 기존 V9 스키마 유지.'
 }
 
 Table Game {
