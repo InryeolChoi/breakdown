@@ -24,6 +24,8 @@ public class RoomSessionRegistry {
 
     public void unregister(Integer roomId, WebSocketSession session) {
         Set<WebSocketSession> sessions = roomSetMap.get(roomId);
+        if (sessions == null)
+            return;
         sessions.remove(session);
     }
 
@@ -32,10 +34,14 @@ public class RoomSessionRegistry {
         if (sessions == null)
             return;
         for (WebSocketSession s : sessions) {
-            if (s.isOpen())
-                s.sendMessage(message);
-            else
+            try {
+                if (s.isOpen())
+                    s.sendMessage(message);
+                else
+                    unregister(roomId, s);
+            } catch (IOException e) {
                 unregister(roomId, s);
+            }
         }
     }
 }
