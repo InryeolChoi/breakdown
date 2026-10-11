@@ -3,6 +3,12 @@
 작업을 이어받을 때(Claude든 Codex든) 이 파일부터 확인한다.
 자세한 논의/이유는 `docs/devlog/<날짜>.md`를 참고한다.
 
+## 다음 시작 지점 (2026-10-11 마무리)
+
+채팅 서버의 핵심 흐름과 방 종료 안내·연결 종료를 구현했으며, 최근 전체 테스트는 97개 통과다. 다음에는 최소 브라우저 화면의 범위를 정하고 닉네임 준비 → 열린 방 목록 → 양방향 채팅 → 종료 안내를 연결한다. 사용자도 연결·전송 동작을 프론트와 함께 확인하는 방향에 동의했다. React/Next.js는 아직 선택하지 않았다.
+
+느린 수신자·연결/전송 한도와 실제 지연·경합 검증, 신고 관리·게임·AWS 운영 준비는 남아 있다. 프론트 연결과 함께 확인할 사항과 서버 자체 검증을 구분한다. 아래 예전 기록의 당시 미구현 상태보다 최신 검증과 이 시작 지점을 우선한다.
+
 ## 지금까지
 
 - Room → RoomRepository → RoomService → RoomController 흐름 완성 (2026-09-18)
@@ -45,13 +51,21 @@
 
 ## 다음에 할 일 — 구현 이해와 실시간 전달
 
-**최신 검증 (2026-10-11):** 사용자가 Registry에 `synchronized (s)`를 적용했고 동시 방송 회귀 테스트가 통과했다. 사용자 위임으로 단일 서브에이전트가 읽기 전용 리뷰·테스트를 담당하고 AI가 Handler의 오류 처리를 수정했다. 잘못된 JSON·공백·141자 입력은 보낸 연결만 오류 JSON을 받은 뒤 같은 연결에서 재입력할 수 있다. 접속 후 사용자 만료·차단·방 종료는 오류 JSON 후 종료 코드 1008로 닫는다. 실제 네트워크 테스트 6개는 각각 실패 → 구현 → 통과를 확인했다. `./gradlew test --rerun-tasks` 전체 88개 통과, 실패·오류·건너뛰기 0이며 최종 리뷰의 actionable 지적은 없다.
+**이전 검증 (2026-10-11):** 사용자가 Registry에 `synchronized (s)`를 적용했고 동시 방송 회귀 테스트가 통과했다. 사용자 위임으로 단일 서브에이전트가 읽기 전용 리뷰·테스트를 담당하고 AI가 Handler의 오류 처리를 수정했다. 잘못된 JSON·공백·141자 입력은 보낸 연결만 오류 JSON을 받은 뒤 같은 연결에서 재입력할 수 있다. 접속 후 사용자 만료·차단·방 종료는 오류 JSON 후 종료 코드 1008로 닫는다. 실제 네트워크 테스트 6개는 각각 실패 → 구현 → 통과를 확인했다. 당시 `./gradlew test --rerun-tasks` 전체 88개 통과, 실패·오류·건너뛰기 0이며 리뷰의 actionable 지적은 없었다.
 
-**최신 검증 — 운영 구간 종료 메서드:** 사용자가 핸드셰이크에 closesAt을 추가하고 Registry의 순회·종료 조건·안내·등록 해제·close를 작성했다. 초기 IOException 미처리와 안내 실패 시 정리 누락을 리뷰로 발견한 뒤 사용자가 세션 잠금 안의 try/finally와 바깥 연결별 catch를 작성했다. 사용자 요청으로 AI가 catch에 roomId/sessionId/예외를 남기는 SLF4J WARN 로그만 추가했다. 같은 서브에이전트의 최종 리뷰는 지적 없음이며 Registry 테스트 6개·`./gradlew test --rerun-tasks` 전체 89개가 통과했다. 실패·오류·건너뛰기 0이다. 첫 정상 종료 테스트는 red → 사용자 구현 → green을 확인했다. 자동 종료 스케줄링은 아직 미구현이다.
+**이전 검증 — 운영 구간 종료 메서드:** 사용자가 핸드셰이크에 closesAt을 추가하고 Registry의 순회·종료 조건·안내·등록 해제·close를 작성했다. 초기 IOException 미처리와 안내 실패 시 정리 누락을 리뷰로 발견한 뒤 사용자가 세션 잠금 안의 try/finally와 바깥 연결별 catch를 작성했다. 사용자 요청으로 AI가 catch에 roomId/sessionId/예외를 남기는 SLF4J WARN 로그만 추가했다. 같은 서브에이전트의 리뷰는 지적 없음이며 Registry 테스트 6개·`./gradlew test --rerun-tasks` 전체 89개가 통과했다. 실패·오류·건너뛰기 0이다. 첫 정상 종료 테스트는 red → 사용자 구현 → green을 확인했다. 당시 자동 종료 스케줄링은 미구현이었다.
 
-**바로 다음 작업:** Registry.closeExpiredSessions를 호출하는 1초 종료 작업을 연결한다. 주입 Clock으로 현재 시각을 얻고 기존 Codec의 방 종료 오류 JSON을 notice로 만든다. 종료 전 유지·안내 실패 후 다른 연결 처리·종료 후 목록 제거를 공개 Registry 경계에서 보강하고, 메시지를 보내지 않는 실제 연결이 Clock 변경 후 자동 종료되는지 검증한다. 방송 직전에도 세션 잠금 안에서 입장 구간의 종료 시각을 검사해 늦게 커밋된 메시지의 전송을 막아야 한다. 느린 수신자의 전송 시간·버퍼 한도는 별도 후속 설계다. 기존 HTTP 작성 API 유지 여부와 프론트 연결은 계속 미정이다.
+**이전 검증 — 1초 정기 작업 추가 후:** 사용자가 RoomConnectionCloser의 생성자 주입과 @Scheduled(fixedDelay = 1000), Clock → Codec → Registry 흐름을 작성했다. encodeError의 String 인자를 ResponseStatusException으로 수정해 컴파일 오류를 해결했다. Registry·Broadcast 대상 15개는 통과했지만 당시 전체 ./gradlew test는 89개 중 88개 통과·1개 실패였다. roomClosed 경우 bob.assertNoFurtherEvents()가 자동 방 종료 안내와 충돌했다.
 
-wayfinder의 [방 운영 종료 감지와 연결 종료 시점](../../.scratch/websocket-chat/issues/02-room-closing-contract.md)은 사용자 답변으로 해결했다. 1초 검사와 방 종료 우선으로 진행한다. 핸드셰이크의 closesAt 준비와 Registry 종료 메서드 첫 정상 경계 검증을 완료했다. 스케줄링과 방송 직전 종료 검사, 실제 유휴 연결 테스트는 아직 없다. 이 세 부분이 연결되기 전에는 WebSocket 운영 종료 기능 전체 완료라고 하지 않는다.
+**이전 검증 — 오류 안내 데이터 분리와 유휴 종료:** 사용자 위임으로 AI가 Codec.encodeError의 입력을 ChatErrorResponse로 바꾸고 Handler·RoomConnectionCloser를 수정했다. 안내용 예외 생성은 제거했고 실제 Service 예외와 JSON 형식·기본 문구·종료 정책은 유지한다. 방 종료를 발신자 전용 테스트에서 분리해 채팅을 보내지 않은 실제 두 연결 모두 안내 403과 종료 코드 1008을 받도록 검증했다. 변경 전 Broadcast 9개 통과, 변경 후 Codec·Broadcast·Registry 35개 통과, 당시 `./gradlew test --rerun-tasks` 전체 92개 통과·실패/오류/건너뛰기 0이었다. 동일 서브에이전트의 리뷰는 actionable 지적 없으며 git diff --check도 통과했다.
+
+**최신 검증 — Clock과 방송 직전 종료 검사:** 사용자가 Registry의 Clock 생성자 주입과 synchronized 안의 현재 시각/종료 검사·continue를 작성했다. AI는 기존 테스트 6곳의 생성자와 모의 연결 closesAt 준비를 맞췄다. 종료 직전·정각·종료 후 방송과 유효 다른 연결 수신, 건너뛴 연결의 이후 종료 안내 유지 검증을 추가했다. Registry·Broadcast 19개 통과, `./gradlew test --rerun-tasks` 전체 96개 통과·실패/오류/건너뛰기 0이며 4개 작업 모두 새로 실행했다. 동일 서브에이전트 리뷰는 actionable 지적 없으며 git diff --check도 통과했다.
+
+**최신 검증 — 종료 안내 전송 실패:** 사용자 위임으로 AI가 실패 연결의 종료 시도와 정상 연결의 안내·종료 지속을 검증하는 테스트 하나를 추가했다. Alice.sendMessage(notice)에만 IOException을 주입하고 실제 Registry를 호출한다. 프로덕션 수정 없이 Registry 11개 통과, `./gradlew test --rerun-tasks` 전체 97개 통과·실패/오류/건너뛰기 0이다. Gradle 작업 4개 모두 새로 실행됐고 동일 서브에이전트 리뷰는 actionable 지적 없음, diff check도 통과했다. WARN 로그는 의도한 전송 실패 기록이다.
+
+**바로 다음 작업:** 최소 브라우저 채팅 화면의 구현 범위를 정한다. 종료 전 연결 유지·close 자체 실패·종료 후 목록 제거, 실제 DB 커밋 지연이나 잠금 대기 중 종료 정각 통과 검증은 별도 후속 범위다. 느린 수신자의 전송 시간·버퍼 한도는 별도 후속 설계다. 기존 HTTP 작성 API 유지 여부와 프론트 연결은 계속 미정이다.
+
+wayfinder의 [방 운영 종료 감지와 연결 종료 시점](../../.scratch/websocket-chat/issues/02-room-closing-contract.md)은 사용자 답변으로 해결했다. 핸드셰이크의 closesAt 준비·Registry 정상 종료 경계·1초 정기 호출·실제 유휴 연결 종료·방송 직전 종료 검사·안내 전송 실패 후 정리 지속을 구현하고 위 범위로 검증했다. [WebSocket 오류 안내 생성 경계](../../.scratch/websocket-chat/issues/03-error-notice-boundary.md)도 위임 범위로 구현했다. close 자체 실패·종료 전 유지·제거 경계와 실제 지연·경합 검증은 남아 있다.
 
 사용자가 작성한 Handler 성공 흐름에 AI가 ChatHandshakeInterceptor·공유 Bean·`/ws/rooms/{roomId}` 등록을 연결했다. 연결 속성 roomId/rawToken은 서버가 준비하고 원문 토큰은 요청 JSON에 추가하지 않는다. 핸드셰이크 8개, 실제 같은 방 방송·두 방 분리·재접속 3개, 입력 오류·종료 오류 6개, Registry 동시 방송 회귀 테스트를 유지한다. 기존 `/ws/echo`는 실제 채팅 Handler와 구분된다.
 

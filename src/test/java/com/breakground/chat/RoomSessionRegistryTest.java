@@ -1,6 +1,9 @@
 package com.breakground.chat;
 
+import com.breakground.support.MutableClock;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.CloseStatus;
@@ -8,6 +11,7 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -23,10 +27,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 class RoomSessionRegistryTest {
+    private static final LocalDateTime CLOSES_AT = LocalDateTime.of(2026, 10, 12, 11, 30);
+    private final MutableClock clock = new MutableClock(LocalDateTime.of(2026, 10, 12, 10, 30));
 
     @Test
     void notifiesThenClosesConnectionExactlyAtItsOperatingPeriodEnd() throws IOException {
-        RoomSessionRegistry registry = new RoomSessionRegistry();
+        RoomSessionRegistry registry = new RoomSessionRegistry(clock);
         WebSocketSession alice = mock(WebSocketSession.class);
         LocalDateTime closesAt = LocalDateTime.of(2026, 10, 12, 11, 30);
         when(alice.isOpen()).thenReturn(true);
@@ -43,12 +49,40 @@ class RoomSessionRegistryTest {
     }
 
     @Test
-    void broadcastsToBothConnectionsRegisteredInTheSameRoom() throws IOException {
-        RoomSessionRegistry registry = new RoomSessionRegistry();
+    void closesFailedNoticeConnectionAndContinuesClosingOtherConnections() throws IOException {
+        RoomSessionRegistry registry = new RoomSessionRegistry(clock);
         WebSocketSession alice = mock(WebSocketSession.class);
         WebSocketSession bob = mock(WebSocketSession.class);
         when(alice.isOpen()).thenReturn(true);
         when(bob.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        when(bob.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        registry.register(1, alice);
+        registry.register(1, bob);
+        TextMessage notice = new TextMessage(
+                "{\"type\":\"ERROR\",\"status\":403,\"message\":\"지금은 닫힌 방입니다.\"}");
+        doThrow(new IOException("종료 안내 전송 실패"))
+                .when(alice).sendMessage(notice);
+
+        registry.closeExpiredSessions(CLOSES_AT, notice);
+
+        // 실패한 전송도 실제로 시도했고, finally에서 해당 연결을 닫아야 한다.
+        verify(alice).sendMessage(notice);
+        verify(alice).close(CloseStatus.POLICY_VIOLATION);
+        var bobDelivery = inOrder(bob);
+        bobDelivery.verify(bob).sendMessage(notice);
+        bobDelivery.verify(bob).close(CloseStatus.POLICY_VIOLATION);
+    }
+
+    @Test
+    void broadcastsToBothConnectionsRegisteredInTheSameRoom() throws IOException {
+        RoomSessionRegistry registry = new RoomSessionRegistry(clock);
+        WebSocketSession alice = mock(WebSocketSession.class);
+        WebSocketSession bob = mock(WebSocketSession.class);
+        when(alice.isOpen()).thenReturn(true);
+        when(bob.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        when(bob.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
 
         registry.register(1, alice);
         registry.register(1, bob);
@@ -66,12 +100,14 @@ class RoomSessionRegistryTest {
 
     @Test
     void doesNotBroadcastToUnregisteredConnection() throws IOException {
-        RoomSessionRegistry A = new RoomSessionRegistry();
+        RoomSessionRegistry A = new RoomSessionRegistry(clock);
         WebSocketSession alice = mock(WebSocketSession.class);
         WebSocketSession bob = mock(WebSocketSession.class);
 
         when(alice.isOpen()).thenReturn(true);
         when(bob.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        when(bob.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
 
         A.register(1, alice);
         A.register(1, bob);
@@ -88,12 +124,14 @@ class RoomSessionRegistryTest {
 
     @Test
     void doesNotBroadcastToConnectionsInAnotherRoom() throws IOException {
-        RoomSessionRegistry A = new RoomSessionRegistry();
+        RoomSessionRegistry A = new RoomSessionRegistry(clock);
         WebSocketSession alice = mock(WebSocketSession.class);
         WebSocketSession bob = mock(WebSocketSession.class);
 
         when(alice.isOpen()).thenReturn(true);
         when(bob.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        when(bob.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
 
         A.register(1, alice);
         A.register(2, bob);
@@ -109,7 +147,7 @@ class RoomSessionRegistryTest {
 
     @Test
     void removesFailedConnectionAndContinuesBroadcasting() throws IOException {
-        RoomSessionRegistry A = new RoomSessionRegistry();
+        RoomSessionRegistry A = new RoomSessionRegistry(clock);
         WebSocketSession alice = mock(WebSocketSession.class);
         WebSocketSession bob = mock(WebSocketSession.class);
 
@@ -118,6 +156,8 @@ class RoomSessionRegistryTest {
 
         when(alice.isOpen()).thenReturn(true);
         when(bob.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        when(bob.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
 
         doThrow(new IOException("전송 실패"))
             .when(alice).sendMessage(any(TextMessage.class));
@@ -136,9 +176,10 @@ class RoomSessionRegistryTest {
 
     @Test
     void concurrentBroadcastsDeliverBothMessagesWithoutOverlappingSends() throws Exception {
-        RoomSessionRegistry registry = new RoomSessionRegistry();
+        RoomSessionRegistry registry = new RoomSessionRegistry(clock);
         WebSocketSession recipient = mock(WebSocketSession.class);
         when(recipient.isOpen()).thenReturn(true);
+        when(recipient.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
 
         CountDownLatch firstSendStarted = new CountDownLatch(1);
         CountDownLatch releaseFirstSend = new CountDownLatch(1);
@@ -196,5 +237,50 @@ class RoomSessionRegistryTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource({"11:29:59, true", "11:30:00, false", "11:30:01, false"})
+    void broadcastsOnlyBeforeEachConnectionsOperatingPeriodEnds(
+            String currentTime, boolean aliceShouldReceive) throws IOException {
+        RoomSessionRegistry registry = new RoomSessionRegistry(clock);
+        WebSocketSession alice = mock(WebSocketSession.class);
+        WebSocketSession bob = mock(WebSocketSession.class);
+        when(alice.isOpen()).thenReturn(true);
+        when(bob.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        when(bob.getAttributes()).thenReturn(Map.of("closesAt",
+                LocalDateTime.of(2026, 10, 12, 12, 30)));
+        registry.register(1, alice);
+        registry.register(1, bob);
+        clock.set(CLOSES_AT.toLocalDate().atTime(LocalTime.parse(currentTime)));
+        TextMessage message = new TextMessage("운영 구간 경계의 방송");
 
+        // 정기 종료 작업을 호출하지 않아도 방송 자체가 만료 연결을 걸러야 한다.
+        registry.broadcast(1, message);
+
+        if (aliceShouldReceive) {
+            verify(alice).sendMessage(message);
+        } else {
+            verify(alice, never()).sendMessage(any(TextMessage.class));
+        }
+        verify(bob).sendMessage(message);
+    }
+
+    @Test
+    void skippedExpiredConnectionStillReceivesItsScheduledClosingNotice() throws IOException {
+        RoomSessionRegistry registry = new RoomSessionRegistry(clock);
+        WebSocketSession alice = mock(WebSocketSession.class);
+        when(alice.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", CLOSES_AT));
+        registry.register(1, alice);
+        clock.set(CLOSES_AT);
+        TextMessage notice = new TextMessage(
+                "{\"type\":\"ERROR\",\"status\":403,\"message\":\"지금은 닫힌 방입니다.\"}");
+
+        registry.broadcast(1, new TextMessage("종료 후 전달하지 않을 방송"));
+        registry.closeExpiredSessions(CLOSES_AT, notice);
+
+        verify(alice, times(1)).sendMessage(any(TextMessage.class));
+        verify(alice).sendMessage(notice);
+        verify(alice).close(CloseStatus.POLICY_VIOLATION);
+    }
 }

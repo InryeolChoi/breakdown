@@ -48,10 +48,7 @@ public class ChatMessageCodec {
         return new TextMessage(mapper.writeValueAsString(ChatMessageResponse.from(message)));
     }
 
-    public TextMessage encodeError(ResponseStatusException exception) {
-        String reason = exception.getReason();
-        ChatErrorResponse response = new ChatErrorResponse("ERROR", exception.getStatusCode().value(),
-                reason == null ? "메시지를 처리할 수 없습니다." : reason);
+    public TextMessage encodeError(ChatErrorResponse response) {
         return new TextMessage(mapper.writeValueAsString(response));
     }
 

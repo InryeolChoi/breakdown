@@ -190,8 +190,7 @@ class ChatWebSocketBroadcastTest {
     static Stream<Arguments> terminalErrors() {
         return Stream.of(
                 Arguments.of("expired", 401, "익명 사용자 식별이 만료됐습니다."),
-                Arguments.of("banned", 403, "현재 차단된 사용자입니다."),
-                Arguments.of("roomClosed", 403, "지금은 닫힌 방입니다."));
+                Arguments.of("banned", 403, "현재 차단된 사용자입니다."));
     }
 
     @ParameterizedTest
@@ -208,7 +207,6 @@ class ChatWebSocketBroadcastTest {
                     users.findById(aliceUser.id()).orElseThrow().recordVisit(NOW.minusDays(7)));
             case "banned" -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
                     users.findById(aliceUser.id()).orElseThrow().banForOneWeek(NOW));
-            case "roomClosed" -> clock.set(NOW.withHour(11).withMinute(0));
             default -> throw new IllegalArgumentException(scenario);
         }
 
@@ -220,6 +218,24 @@ class ChatWebSocketBroadcastTest {
         assertEquals(expectedMessage, error.get("message").stringValue());
         assertEquals(1008, alice.awaitCloseStatus());
         bob.assertNoFurtherEvents();
+    }
+
+    @Test
+    void notifiesAndClosesIdleConnectionsWhenTheirOperatingPeriodEnds() throws Exception {
+        Integer roomId = createOpenRoom();
+        ChatClient alice = connect(roomId, prepareUser("Alice"));
+        ChatClient bob = connect(roomId, prepareUser("Bob"));
+
+        // 채팅을 보내지 않아도 정기 작업이 두 연결을 모두 종료해야 한다.
+        clock.set(LocalDateTime.of(2026, 10, 12, 11, 0));
+
+        for (ChatClient connection : List.of(alice, bob)) {
+            JsonNode notice = connection.receive();
+            assertEquals("ERROR", notice.get("type").stringValue());
+            assertEquals(403, notice.get("status").intValue());
+            assertEquals("지금은 닫힌 방입니다.", notice.get("message").stringValue());
+            assertEquals(1008, connection.awaitCloseStatus());
+        }
     }
 
     private Integer createOpenRoom() {

@@ -8,6 +8,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
@@ -18,6 +19,11 @@ import org.springframework.web.socket.CloseStatus;
 public class RoomSessionRegistry {
     private static final Logger log = LoggerFactory.getLogger(RoomSessionRegistry.class);
     private final Map<Integer, Set<WebSocketSession>> roomSetMap = new ConcurrentHashMap<Integer, Set<WebSocketSession>>();
+    private final Clock clock;
+
+    public RoomSessionRegistry(Clock clock) {
+        this.clock = clock;
+    }
 
     public void register(Integer roomId, WebSocketSession newSession) {
         Set<WebSocketSession> sessions = roomSetMap.computeIfAbsent(roomId,
@@ -71,8 +77,15 @@ public class RoomSessionRegistry {
         for (WebSocketSession s : sessions) {
             try {
                 synchronized (s) {
-                    if (s.isOpen())
+                    if (s.isOpen()) {
+                        LocalDateTime closesAt =
+                            (LocalDateTime) s.getAttributes().get("closesAt");
+                        LocalDateTime now = LocalDateTime.now(clock);
+                        if (!now.isBefore(closesAt)) {
+                            continue;
+                        }
                         s.sendMessage(message);
+                    }
                     else
                         unregister(roomId, s);
                 }

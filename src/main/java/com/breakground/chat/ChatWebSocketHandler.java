@@ -5,6 +5,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.breakground.chat.dto.MessageCreateRequest;
+import com.breakground.chat.dto.ChatErrorResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -65,7 +66,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private void sendErrorAndApplyPolicy(Integer roomId, WebSocketSession session,
                                         ResponseStatusException exception)
             throws IOException {
-        TextMessage error = chatMessageCodec.encodeError(exception);
+        String reason = exception.getReason();
+        ChatErrorResponse response = new ChatErrorResponse(
+                "ERROR", exception.getStatusCode().value(),
+                reason == null ? "메시지를 처리할 수 없습니다." : reason);
+        TextMessage error = chatMessageCodec.encodeError(response);
         boolean terminate = exception.getStatusCode().value() != HttpStatus.BAD_REQUEST.value();
         // 방송과 같은 세션 객체를 잠가 오류 응답과 방송의 전송도 겹치지 않게 한다.
         synchronized (session) {

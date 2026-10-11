@@ -18,10 +18,11 @@ Label: wayfinder:map
 
 - [WebSocket 접속·메시지·종료 계약](issues/01-connection-contract.md): HTTP 익명 준비·본문 JSON·종료 안내·입력 오류 처리·쿠키 갱신과 사용자/AI 분담을 확인했다.
 - [방 운영 종료 감지와 연결 종료 시점](issues/02-room-closing-contract.md): 1초 검사와 방 종료 우선으로 결정했고 입장한 운영 구간의 종료 시각을 기준으로 구현한다.
+- [WebSocket 오류 안내 생성 경계](issues/03-error-notice-boundary.md): 기존 JSON을 유지하고 안내 데이터 생성과 직렬화를 분리하는 작은 수정을 AI에게 위임했다.
 
 ## Not yet specified
 
-현재 목표의 미확정 정책은 없다. 종료 계약 티켓의 구현 인계 순서에 따라 작은 단위로 진행한다. 사용자의 첫 학습 과제는 핸드셰이크에 운영 구간 종료 시각을 준비하는 것이다. Java 구현은 별도 단계다.
+현재 목표의 미확정 정책은 없다. 확정한 종료 계약과 오류 안내 생성 경계에 따라 구현·검증을 작은 단위로 진행한다. Java 구현은 별도 단계다.
 
 ## Out of scope
 

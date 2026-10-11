@@ -1,5 +1,6 @@
 package com.breakground.chat;
 
+import com.breakground.chat.dto.ChatErrorResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
@@ -61,5 +62,18 @@ class ChatMessageCodecTest {
         assertEquals(content, json.get("content").stringValue());
         assertEquals(sentAt, mapper.treeToValue(json.get("sentAt"), LocalDateTime.class));
         assertEquals(sentAt.plusMinutes(15), mapper.treeToValue(json.get("expiresAt"), LocalDateTime.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {400, 401, 403})
+    void encodesErrorDataWithTheExistingJsonFieldsAndEscapedMessage(int status) {
+        var response = new ChatErrorResponse("ERROR", status, "\"안내\"\n다시 확인해주세요.");
+
+        JsonNode json = mapper.readTree(codec.encodeError(response).getPayload());
+
+        assertEquals(3, json.size());
+        assertEquals("ERROR", json.get("type").stringValue());
+        assertEquals(status, json.get("status").intValue());
+        assertEquals("\"안내\"\n다시 확인해주세요.", json.get("message").stringValue());
     }
 }
