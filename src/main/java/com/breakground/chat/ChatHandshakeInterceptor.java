@@ -49,8 +49,10 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
             }
             // 방 검사를 먼저 끝내어 거절된 방 접속이 방문 시각을 갱신하지 않게 한다.
             users.requireActiveUser(rawToken, now);
+
             attributes.put("roomId", roomId);
             attributes.put("rawToken", rawToken);
+            attributes.put("closesAt", room.currentClosingTime(now));
             return true;
         } catch (ResponseStatusException error) {
             response.setStatusCode(error.getStatusCode());

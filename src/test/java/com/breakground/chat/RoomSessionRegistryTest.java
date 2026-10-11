@@ -3,10 +3,13 @@ package com.breakground.chat;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -20,6 +23,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 class RoomSessionRegistryTest {
+
+    @Test
+    void notifiesThenClosesConnectionExactlyAtItsOperatingPeriodEnd() throws IOException {
+        RoomSessionRegistry registry = new RoomSessionRegistry();
+        WebSocketSession alice = mock(WebSocketSession.class);
+        LocalDateTime closesAt = LocalDateTime.of(2026, 10, 12, 11, 30);
+        when(alice.isOpen()).thenReturn(true);
+        when(alice.getAttributes()).thenReturn(Map.of("closesAt", closesAt));
+        registry.register(1, alice);
+        TextMessage notice = new TextMessage(
+                "{\"type\":\"ERROR\",\"status\":403,\"message\":\"지금은 닫힌 방입니다.\"}");
+
+        registry.closeExpiredSessions(closesAt, notice);
+
+        var delivery = inOrder(alice);
+        delivery.verify(alice).sendMessage(notice);
+        delivery.verify(alice).close(CloseStatus.POLICY_VIOLATION);
+    }
 
     @Test
     void broadcastsToBothConnectionsRegisteredInTheSameRoom() throws IOException {
