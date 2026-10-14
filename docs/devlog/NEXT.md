@@ -3,9 +3,13 @@
 작업을 이어받을 때(Claude든 Codex든) 이 파일부터 확인한다.
 자세한 논의/이유는 `docs/devlog/<날짜>.md`를 참고한다.
 
-## 다음 시작 지점 (2026-10-15 디자인 MCP)
+## 다음 시작 지점 (2026-10-15 프런트 디자인 준비)
 
-Stitch를 첫 디자인 MCP로 사용자 승인했다. 공식 원격 endpoint·인증·생성/수정/변형 기능을 조사했으며 [근거](../research/design-mcp-comparison.md)에 기록했다. 실제 인증·등록·설치·연결 검증은 아직 하지 않았다. 다음 도구 단계는 계정 조건 확인과 원격 MCP 연결이다. 첫 화면·접속 경로·라벨/세부 setup 결정은 별도다.
+첫 화면에는 방 선택과 닉네임 입력을 함께 둔다. 분위기는 개방된 오피스 사이의 사내 카페다. 다음에는 코드 없이 화면 구성안 두 개를 비교하고 세부 배치를 결정한다. 열린 방이 없는 상태의 운영 시간 안내는 추천 후보이며 아직 확정하지 않았다. 질문을 한꺼번에 늘리지 않는다.
+
+Vercel 공식 web-design-guidelines와 vercel-react-best-practices도 사용자 요청으로 설치했다. 세 디자인/프런트 스킬은 사용자 Codex 폴더에 설치되어 있으며 다른 AI 환경에 자동 설치되는 것은 아니다. 2026-10-15 종료 시 make fclean이 성공해 PostgreSQL 컨테이너·네트워크와 Docker Desktop을 종료했다.
+
+사용자가 frontend-design 스킬부터 사용하고 Stitch 연결은 보류하기로 승인했다. Anthropic 공식 스킬을 `/Users/inchoi/.codex/skills/frontend-design`에 설치했다. 다음은 첫 화면·입장 흐름을 정하고 라운지 디자인 계획을 비교하는 단계다. Stitch의 [조사 근거](../research/design-mcp-comparison.md)는 유지하며 실제 인증·등록·연결 검증은 하지 않았다. 접속 경로·라벨/세부 setup 결정은 별도다.
 
 앞서 사용자가 요청한 GitHub 티켓 발행을 완료했다. [실제 이슈 인계](../frontend-issues.md)에서 부모 지도·명세와 설계/준비 티켓·구현 티켓을 확인한다. 총 11개 이슈이며 9개 자식의 native 부모·선행 관계와 OPEN 상태를 검증했다. 미결정 티켓은 해결 완료나 ready-for-agent로 표시하지 않았다. 준비 문서는 이번 커밋·푸시 대상으로 정리한다.
 
