@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="sun" x1="1" y1="0" x2="0" y2="1">
+      <stop stop-color="#fffde7" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#fff5cf" stop-opacity=".3"/>
+    </linearGradient>
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#76583d" stop-opacity="0"/>
+      <stop offset="1" stop-color="#76583d" stop-opacity=".18"/>
+    </linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+  <!-- Off-screen window at upper right; its light lands on the floor below the viewer. -->
+  <path d="M1000 -60H1410V350L680 880H-180Z" fill="url(#sun)" filter="url(#soft)"/>
+  <g fill="url(#shade)" filter="url(#soft)">
+    <path d="M1080 220L1110 234 375 850H300Z"/>
+    <path d="M1250 295L1280 308 750 850H675Z"/>
+    <path d="M306 631L335 606 1050 660 1015 693Z"/>
+  </g>
+</svg>
