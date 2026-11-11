@@ -163,7 +163,7 @@ export default function Cafe({ variant }: { variant: 'spatial' | 'minimal' }) {
   return <main className={`cafe ${variant}`} data-theme={variant === 'minimal' ? theme : undefined} data-phase={phase} data-motion={backgroundMotion ? 'running' : 'paused'}>
     <div className="cafe-scene" aria-hidden="true">{variant === 'minimal' && theme === 'ice' && <div className="cold-airflow"><span className="cloud-layer cloud-far"/><span className="cloud-layer cloud-near"/></div>}</div>
     {variant === 'spatial' && <div className="table-depth" aria-hidden="true"/>}
-    <header className="cafe-header"><Link href="/minimal" className="wordmark">breakground</Link></header>
+    <header className="cafe-header"><Link href="/minimal" className="wordmark">breakground</Link><nav aria-label="게임"><Link href="/games">게임</Link></nav></header>
     <div className="mode-bar"><span className="mode-status"><span className={`status-dot ${mode}`}/>{mode === 'demo' ? '체험 모드' : '실제 모드'}</span><span className="mode-detail">{mode === 'demo' ? '자동 답변 예시 · 저장되지 않아요' : ''}</span><button className="mode-switch" onClick={() => changeMode(mode === 'demo' ? 'live' : 'demo')}>{mode === 'demo' ? '실제 서버로 바꾸기' : '체험 모드로 바꾸기'}</button></div>
     <section className="scene-copy" aria-label="소개"><h1>잠깐 쉬어요.</h1></section>
     <div className="scene-actions"><button onClick={() => setQuiet(value => !value)}>{quiet ? '입장 · 대화 열기' : variant === 'spatial' ? '공간만 보기' : '배경만 보기'}</button>{variant === 'minimal' && theme === 'ice' && <button aria-pressed={!backgroundMotion} onClick={() => setBackgroundMotion(value => !value)}>{backgroundMotion ? '냉기 멈추기' : '냉기 켜기'}</button>}</div>
