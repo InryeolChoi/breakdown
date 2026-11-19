@@ -32,7 +32,10 @@ npm test
 npm run typecheck
 npm run build
 RUN_LIVE_TESTS=1 node --test tests/live.test.mjs
+RUN_LIVE_TESTS=1 RUN_LIVE_DEPTH_TESTS=1 npm test
 ```
+
+깊은 연동 검사는 열린 기존 방에서 8개 연결의 동시 메시지 전달, 입력 오류 후 복구, 140자 이모지 경계, 재방문 쿠키, 동시 중복 신고를 확인한다. 다른 연동 검사와 함께 실행할 수 있도록 실행별 메시지 표식을 사용한다. 테스트용 사용자·메시지·신고가 로컬 DB에 남는다. 기본 `npm test`에서는 두 연동 검사를 건너뛰고 계약·게임 규칙 검사를 실행한다.
 
 실제 연동 테스트는 현재 열린 기존 방이 있어야 한다. 별도 익명 사용자와 메시지, 테스트 신고를 로컬 DB에 생성한다. 컨테이너 볼륨이나 기존 기록을 삭제하지 않는다. 저장·쿠키·Origin·두 연결 수신·입력 오류 후 연결 유지·신고와 중복 신고를 확인한다. 개발 중인 서버에서 production build를 동시에 반복 실행하지 않는 편이 좋다.
 

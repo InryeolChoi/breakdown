@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -22,18 +23,21 @@ public class AnonymousUserService {
     private final SecureRandom secureRandom = new SecureRandom();
     private final AnonymousUserRepository anonymousUserRepository;
     private final KoreanNicknameGenerator koreanNicknameGenerator;
+    private final Clock clock;
 
     public AnonymousUserService(
             AnonymousUserRepository anonymousUserRepository,
-            KoreanNicknameGenerator koreanNicknameGenerator
+            KoreanNicknameGenerator koreanNicknameGenerator,
+            Clock clock
     ) {
         this.anonymousUserRepository = anonymousUserRepository;
         this.koreanNicknameGenerator = koreanNicknameGenerator;
+        this.clock = clock;
     }
 
     @Transactional
     public AnonymousUserSession getOrCreateAnonymousUser(String nickname, String rawToken) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         Optional<AnonymousUser> user = findByToken(rawToken);
         if (user.isEmpty()) {
             return createSession(nickname, now);
