@@ -3,6 +3,10 @@
 작업을 이어받을 때(Claude든 Codex든) 이 파일부터 확인한다.
 자세한 논의/이유는 `docs/devlog/<날짜>.md`를 참고한다.
 
+## 다음 시작 지점 (2026-11-22 Lightsail 첫 배포)
+
+서울 Lightsail 2GB에 Compose로 첫 배포했다. 공인 HTTPS 화면·API·쿠키·WSS 인증 거절을 확인했다. 로컬 HTTPS 채팅·신고 검증을 마쳤다. 운영 환경의 실제 채팅 왕복은 평일 방 운영 시간에 확인한다. 다음 작업은 GitHub Actions로 검증과 이미지 배포를 연결하는 것이다. 서버 구성과 확인 결과는 [261122.md](261122.md)에 기록했다.
+
 ## 다음 시작 지점 (2026-11-20 배포 전 테스트)
 
 시간대 결함을 수정했다. RoomController와 AnonymousUserService가 기존 Asia/Seoul Clock을 생성자로 주입받는다. UTC에서 열린 방 목록이 사라지던 회귀 검사와 익명 사용자 생성·7일 직전 재방문·정확히 7일 만료 검사까지 포함한 Spring 테스트 101개가 통과했다. 푸시 후 Spring 101개와 프런트·실제 연동 16개를 다시 실행해 모두 통과했다. 실제 연동은 JVM 기본 시간대가 UTC인 Spring과 production build한 프런트에서 확인했다. 다음은 실제 휴대전화와 HTTPS 환경의 쿠키·WebSocket 검증이다. 자세한 실행 결과는 [261120.md](261120.md)에 기록한다.

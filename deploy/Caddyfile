@@ -1,0 +1,32 @@
+{
+	default_sni {$BREAKGROUND_SITE}
+}
+
+(public_ip_tls) {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+			profile shortlived
+		}
+	}
+}
+
+{$BREAKGROUND_SITE} {
+	{$BREAKGROUND_TLS}
+
+	handle / {
+		redir * /minimal 302
+	}
+
+	handle_path /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle /ws/rooms/* {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
