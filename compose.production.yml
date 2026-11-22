@@ -1,9 +1,16 @@
 name: breakground-production
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   gateway:
     image: caddy:2-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       BREAKGROUND_SITE: ${BREAKGROUND_SITE:?Set the site address}
       BREAKGROUND_TLS: ${BREAKGROUND_TLS:-}
@@ -21,6 +28,7 @@ services:
     image: ${BREAKGROUND_FRONTEND_IMAGE:-breakground-frontend:local}
     build: ./frontend
     restart: unless-stopped
+    logging: *logging
     networks:
       - web
 
@@ -28,12 +36,15 @@ services:
     image: ${BREAKGROUND_BACKEND_IMAGE:-breakground-backend:local}
     build: .
     restart: unless-stopped
+    logging: *logging
     environment:
       JAVA_TOOL_OPTIONS: -Xmx384m
       SERVER_FORWARD_HEADERS_STRATEGY: framework
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/breakground
-      SPRING_DATASOURCE_USERNAME: breakground
-      SPRING_DATASOURCE_PASSWORD: ${BREAKGROUND_DB_PASSWORD:?Set a database password}
+      SPRING_DATASOURCE_USERNAME: ${BREAKGROUND_APP_DB_USER:-breakground}
+      SPRING_DATASOURCE_PASSWORD: ${BREAKGROUND_APP_DB_PASSWORD:-${BREAKGROUND_DB_PASSWORD}}
+      SPRING_FLYWAY_USER: ${BREAKGROUND_FLYWAY_DB_USER:-breakground}
+      SPRING_FLYWAY_PASSWORD: ${BREAKGROUND_FLYWAY_DB_PASSWORD:-${BREAKGROUND_DB_PASSWORD}}
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,6 +55,7 @@ services:
   postgres:
     image: postgres:17
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_DB: breakground
       POSTGRES_USER: breakground

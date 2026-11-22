@@ -14,11 +14,23 @@
 {$BREAKGROUND_SITE} {
 	{$BREAKGROUND_TLS}
 
+	header {
+		Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
 	handle / {
 		redir * /minimal 302
 	}
 
 	handle_path /api/* {
+		@unknown not path_regexp ^/(anonymoususer|rooms|rooms/[0-9]+/(messages|reports))$
+		respond @unknown 404
+		request_body {
+			max_size 16KB
+		}
 		reverse_proxy backend:8080
 	}
 
