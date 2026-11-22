@@ -5,6 +5,11 @@ import WebSocket from 'ws';
 
 const origin = process.env.COMPARE_URL || 'http://127.0.0.1:3000';
 const enabled = process.env.RUN_LIVE_DEPTH_TESTS === '1';
+// Run the heavier case only against an isolated local stack.
+const stress = process.env.RUN_LIVE_CHAT_STRESS === '1';
+const clientCount = stress ? 24 : 8;
+const messagesPerClient = stress ? 20 : 10;
+const messageCount = clientCount * messagesPerClient;
 
 async function prepareUser(nickname, cookie) {
   const response = await fetch(`${origin}/api/anonymoususer`, {
@@ -62,6 +67,7 @@ function trackMessages(socket, belongsToRun) {
 
 test('live depth: session reuse, input recovery, concurrent delivery, and duplicate report race',
   { skip: !enabled, timeout: 60000 }, async t => {
+    if (stress) assert.equal(new URL(origin).hostname, '127.0.0.1');
     const response = await fetch(`${origin}/api/rooms`, { signal: AbortSignal.timeout(5000) });
     assert.equal(response.status, 200);
     const rooms = await response.json();
@@ -72,7 +78,7 @@ test('live depth: session reuse, input recovery, concurrent delivery, and duplic
     const runId = Date.now().toString(36);
     const boundaryContent = runId + '😀'.repeat(140 - runId.length);
 
-    for (let index = 0; index < 8; index++) {
+    for (let index = 0; index < clientCount; index++) {
       const user = await prepareUser(`깊은검증${runId}${index}`);
       const socket = new WebSocket(`${origin.replace(/^http/, 'ws')}/ws/rooms/${room.id}`, {
         origin, headers: { Cookie: user.cookie }, handshakeTimeout: 5000,
@@ -114,12 +120,12 @@ test('live depth: session reuse, input recovery, concurrent delivery, and duplic
     });
 
     let evidence;
-    await t.test('eight simultaneous senders deliver all 80 distinct messages to all eight clients', async () => {
+    await t.test(`all ${clientCount} clients receive ${messageCount} distinct messages during a concurrent burst`, async () => {
       const offsets = clients.map(client => client.tracker.received.length);
       const expected = new Set();
-      const waits = clients.map((client, index) => client.tracker.until(offsets[index] + 80));
+      const waits = clients.map((client, index) => client.tracker.until(offsets[index] + messageCount));
       clients.forEach((client, sender) => {
-        for (let sequence = 0; sequence < 10; sequence++) {
+        for (let sequence = 0; sequence < messagesPerClient; sequence++) {
           const content = `깊은검증 ${runId} ${sender}-${sequence}`;
           expected.add(content);
           client.socket.send(JSON.stringify({ content }));
@@ -128,9 +134,9 @@ test('live depth: session reuse, input recovery, concurrent delivery, and duplic
       await Promise.all(waits);
       const batches = clients.map((client, index) => client.tracker.received.slice(offsets[index]));
       for (const batch of batches) {
-        assert.equal(batch.length, 80);
+        assert.equal(batch.length, messageCount);
         assert.deepEqual(new Set(batch.map(message => message.content)), expected);
-        assert.equal(new Set(batch.map(message => message.id)).size, 80);
+        assert.equal(new Set(batch.map(message => message.id)).size, messageCount);
         for (const message of batch) {
           const sender = Number(message.content.split(' ').at(-1).split('-')[0]);
           assert.equal(message.authorId, clients[sender].user.data.id);
@@ -141,6 +147,37 @@ test('live depth: session reuse, input recovery, concurrent delivery, and duplic
       for (const batch of batches.slice(1)) assert.deepEqual(new Set(batch.map(message => message.id)), ids);
       evidence = batches[0].find(message => message.authorId === clients[0].user.data.id);
     });
+
+    if (stress) {
+      await t.test('other rooms stay isolated while a client repeatedly reconnects', async () => {
+        assert.ok(rooms[1], 'Open a second room in the isolated database');
+        const user = clients[0].user;
+        async function openTracked(roomId) {
+          const socket = new WebSocket(`${origin.replace(/^http/, 'ws')}/ws/rooms/${roomId}`, {
+            origin, headers: { Cookie: user.cookie }, handshakeTimeout: 5000,
+          });
+          const tracker = trackMessages(socket, message => message.content?.startsWith(`깊은검증 ${runId} `));
+          t.after(() => socket.terminate());
+          await once(socket, 'open');
+          return { socket, tracker };
+        }
+        const other = await openTracked(rooms[1].id);
+        for (let round = 0; round < 5; round++) {
+          const returning = await openTracked(room.id);
+          const content = `깊은검증 ${runId} reconnect-${round}`;
+          clients[0].socket.send(JSON.stringify({ content }));
+          await returning.tracker.until(1);
+          assert.equal(returning.tracker.received[0].content, content);
+          const closed = once(returning.socket, 'close', { signal: AbortSignal.timeout(5000) });
+          returning.socket.close();
+          await closed;
+        }
+        const content = `깊은검증 ${runId} other-room`;
+        other.socket.send(JSON.stringify({ content }));
+        await other.tracker.until(1);
+        assert.deepEqual(other.tracker.received.map(message => message.content), [content]);
+      });
+    }
 
     await t.test('12 concurrent duplicate reports produce one 201 and eleven 409 responses', async () => {
       const statuses = await Promise.all(Array.from({ length: 12 }, async () => {

@@ -1,0 +1,11 @@
+The GLBs are distributed as CC0 1.0 assets under the following source listings.
+
+hoodie.glb and hoodie-aisle.glb are Casual Walker v1, LOD0 and LOD1.
+https://tevy.dev/models/casual-walker
+
+jacket.glb and jacket-aisle.glb are Dog Walker v1, LOD0 and LOD1.
+https://tevy.dev/models/dog-walker
+
+basis_transcoder.js and basis_transcoder.wasm are the unmodified Basis Universal
+transcoder from Three.js r187, licensed under Apache 2.0. See BASIS-LICENSE.txt.
+https://github.com/mrdoob/three.js/tree/r187/examples/jsm/libs/basis
