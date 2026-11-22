@@ -68,8 +68,8 @@ class ChatPersistenceTransactionTest {
         transactions.executeWithoutResult(status -> {
             room = rooms.saveAndFlush(new Room("커밋테스트방", LocalTime.of(10, 0),
                     LocalTime.of(11, 0), true, true));
-            author = sessions.getOrCreateAnonymousUser("작성자", null);
-            reporter = sessions.getOrCreateAnonymousUser("신고자", null);
+            author = sessions.getOrCreateAnonymousUser("작성자", null, "127.0.0.1");
+            reporter = sessions.getOrCreateAnonymousUser("신고자", null, "127.0.0.1");
             author.user().recordVisit(NOW.minusHours(1));
             reporter.user().recordVisit(NOW.minusHours(1));
         });

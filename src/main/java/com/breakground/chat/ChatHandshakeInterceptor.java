@@ -2,6 +2,8 @@ package com.breakground.chat;
 
 import com.breakground.anonymoususer.AnonymousUserCookies;
 import com.breakground.anonymoususer.AnonymousUserService;
+import com.breakground.common.ratelimit.RateLimitProperties;
+import com.breakground.common.ratelimit.RateLimiter;
 import com.breakground.room.Room;
 import com.breakground.room.RoomRepository;
 import jakarta.servlet.http.Cookie;
@@ -25,17 +27,28 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
     private final AnonymousUserService users;
     private final RoomRepository rooms;
     private final Clock clock;
+    private final RateLimiter rateLimiter;
+    private final RateLimitProperties limits;
+    private final RoomSessionRegistry registry;
 
-    public ChatHandshakeInterceptor(AnonymousUserService users, RoomRepository rooms, Clock clock) {
+    public ChatHandshakeInterceptor(AnonymousUserService users, RoomRepository rooms, Clock clock,
+                                    RateLimiter rateLimiter, RateLimitProperties limits,
+                                    RoomSessionRegistry registry) {
         this.users = users;
         this.rooms = rooms;
         this.clock = clock;
+        this.rateLimiter = rateLimiter;
+        this.limits = limits;
+        this.registry = registry;
     }
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler handler, Map<String, Object> attributes) {
         try {
+            // 쿠키·DB 확인 전에 IP 기준으로 먼저 걸러 반복 연결 시도의 DB 부하를 줄인다.
+            rateLimiter.acquireOrThrow("websocket-connect", clientIp(request), limits.websocketConnect(),
+                    "연결 시도가 너무 많아요. 잠시 후 다시 시도해주세요.");
             String rawToken = readToken(request);
             if (rawToken == null || rawToken.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "익명 사용자를 먼저 준비해주세요.");
@@ -46,6 +59,10 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
                     new ResponseStatusException(HttpStatus.NOT_FOUND, "방을 찾을 수 없습니다."));
             if (!room.isOpen(now)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "현재 운영 중인 방이 아닙니다.");
+            }
+            // 등록 직전까지의 동시 연결은 근사치다. 한도를 약간 넘는 것은 허용한다.
+            if (registry.count(roomId) >= limits.roomConnections()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "방 정원이 가득 찼어요.");
             }
             // 방 검사를 먼저 끝내어 거절된 방 접속이 방문 시각을 갱신하지 않게 한다.
             users.requireActiveUser(rawToken, now);
@@ -61,6 +78,13 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
         }
+    }
+
+    private String clientIp(ServerHttpRequest request) {
+        if (request instanceof ServletServerHttpRequest servletRequest) {
+            return servletRequest.getServletRequest().getRemoteAddr();
+        }
+        return request.getRemoteAddress() == null ? "unknown" : request.getRemoteAddress().getHostString();
     }
 
     private String readToken(ServerHttpRequest request) {

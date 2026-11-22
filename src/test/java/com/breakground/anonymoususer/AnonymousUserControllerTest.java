@@ -30,7 +30,7 @@ class AnonymousUserControllerTest {
 
     @Test
     void acceptsMissingNicknameAndPassesNullToService() throws Exception {
-        when(anonymousUserService.getOrCreateAnonymousUser(null, null)).thenReturn(
+        when(anonymousUserService.getOrCreateAnonymousUser(null, null, "127.0.0.1")).thenReturn(
                 new AnonymousUserSession(new AnonymousUser(
                     "졸린고양이123",
                     LocalDate.of(2026, 10, 4),
@@ -52,7 +52,7 @@ class AnonymousUserControllerTest {
                 .andExpect(jsonPath("$.tokenHash").doesNotExist())
                 .andExpect(jsonPath("$.nickname").value("졸린고양이123"));
 
-        verify(anonymousUserService).getOrCreateAnonymousUser(null, null);
+        verify(anonymousUserService).getOrCreateAnonymousUser(null, null, "127.0.0.1");
     }
 
     @Test
@@ -69,7 +69,7 @@ class AnonymousUserControllerTest {
     }
     @Test
     void forwardsCookieTokenAndSetsSecureCookieForHttps() throws Exception {
-        when(anonymousUserService.getOrCreateAnonymousUser(null, "existing-token"))
+        when(anonymousUserService.getOrCreateAnonymousUser(null, "existing-token", "127.0.0.1"))
                 .thenReturn(session("existing-token"));
 
         mockMvc.perform(post("/anonymoususer")
@@ -81,13 +81,13 @@ class AnonymousUserControllerTest {
                 .andExpect(header().string("Set-Cookie", containsString("anonymous_user_token=existing-token")))
                 .andExpect(header().string("Set-Cookie", containsString("Secure")));
 
-        verify(anonymousUserService).getOrCreateAnonymousUser(null, "existing-token");
+        verify(anonymousUserService).getOrCreateAnonymousUser(null, "existing-token", "127.0.0.1");
     }
 
     @Test
     void acceptsThirtyCharacterNickname() throws Exception {
         String nickname = "가".repeat(30);
-        when(anonymousUserService.getOrCreateAnonymousUser(nickname, null))
+        when(anonymousUserService.getOrCreateAnonymousUser(nickname, null, "127.0.0.1"))
                 .thenReturn(session("new-token"));
 
         mockMvc.perform(post("/anonymoususer")
@@ -95,7 +95,7 @@ class AnonymousUserControllerTest {
                         .content("{\"nickname\":\"" + nickname + "\"}"))
                 .andExpect(status().isOk());
 
-        verify(anonymousUserService).getOrCreateAnonymousUser(nickname, null);
+        verify(anonymousUserService).getOrCreateAnonymousUser(nickname, null, "127.0.0.1");
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.breakground.anonymoususer;
 
+import com.breakground.common.ratelimit.RateLimitProperties;
+import com.breakground.common.ratelimit.RateLimiter;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,23 +26,30 @@ public class AnonymousUserService {
     private final AnonymousUserRepository anonymousUserRepository;
     private final KoreanNicknameGenerator koreanNicknameGenerator;
     private final Clock clock;
+    private final RateLimiter rateLimiter;
+    private final RateLimitProperties limits;
 
     public AnonymousUserService(
             AnonymousUserRepository anonymousUserRepository,
             KoreanNicknameGenerator koreanNicknameGenerator,
-            Clock clock
+            Clock clock,
+            RateLimiter rateLimiter,
+            RateLimitProperties limits
     ) {
         this.anonymousUserRepository = anonymousUserRepository;
         this.koreanNicknameGenerator = koreanNicknameGenerator;
         this.clock = clock;
+        this.rateLimiter = rateLimiter;
+        this.limits = limits;
     }
 
+    // clientIp는 새 사용자를 만들 때만 빈도 제한에 쓴다. 쿠키가 유효한 재방문은 세지 않는다.
     @Transactional
-    public AnonymousUserSession getOrCreateAnonymousUser(String nickname, String rawToken) {
+    public AnonymousUserSession getOrCreateAnonymousUser(String nickname, String rawToken, String clientIp) {
         LocalDateTime now = LocalDateTime.now(clock);
         Optional<AnonymousUser> user = findByToken(rawToken);
         if (user.isEmpty()) {
-            return createSession(nickname, now);
+            return createSession(nickname, now, clientIp);
         }
 
         AnonymousUser existingUser = user.orElseThrow();
@@ -49,7 +58,7 @@ public class AnonymousUserService {
             return new AnonymousUserSession(existingUser, rawToken);
         }
         if (isExpired(existingUser, now)) {
-            return createSession(nickname, now);
+            return createSession(nickname, now, clientIp);
         }
 
         existingUser.recordVisit(now);
@@ -87,7 +96,9 @@ public class AnonymousUserService {
         return idle.compareTo(IDLE_TIMEOUT) >= 0;
     }
 
-    private AnonymousUserSession createSession(String nickname, LocalDateTime now) {
+    private AnonymousUserSession createSession(String nickname, LocalDateTime now, String clientIp) {
+        rateLimiter.acquireOrThrow("session-issue", clientIp, limits.sessionIssue(),
+                "새 익명 사용자 요청이 많아요. 잠시 후 다시 시도해주세요.");
         String rawToken = generateToken();
         AnonymousUser user = new AnonymousUser(
                 resolveNickname(nickname), now.toLocalDate(), now, hashToken(rawToken));

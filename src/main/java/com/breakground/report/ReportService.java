@@ -5,6 +5,8 @@ import com.breakground.anonymoususer.AnonymousUserService;
 import com.breakground.chat.ChatMessage;
 import com.breakground.chat.Message;
 import com.breakground.chat.MessageRepository;
+import com.breakground.common.ratelimit.RateLimitProperties;
+import com.breakground.common.ratelimit.RateLimiter;
 import com.breakground.room.Room;
 import com.breakground.room.RoomRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -25,10 +27,15 @@ public class ReportService {
     private final MessageRepository messages;
     private final ReportProperties properties;
     private final Clock clock;
+    private final RateLimiter rateLimiter;
+    private final RateLimitProperties limits;
 
     public ReportService(ReportRepository reports, RoomRepository rooms,
                          AnonymousUserService sessions, MessageRepository messages,
-                         ReportProperties properties, Clock clock) {
+                         ReportProperties properties, Clock clock, RateLimiter rateLimiter,
+                         RateLimitProperties limits) {
+        this.rateLimiter = rateLimiter;
+        this.limits = limits;
         this.reports = reports;
         this.rooms = rooms;
         this.sessions = sessions;
@@ -41,6 +48,8 @@ public class ReportService {
     public Report create(Integer roomId, String rawToken, UUID messageId, String reason) {
         LocalDateTime now = LocalDateTime.now(clock);
         AnonymousUser reporter = sessions.requireActiveUser(rawToken, now);
+        rateLimiter.acquireOrThrow("report", reporter.getId().toString(), limits.report(),
+                "신고 요청이 너무 많아요. 잠시 후 다시 시도해주세요.");
         Room room = rooms.findById(roomId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "방을 찾을 수 없습니다."));
         // 사용자/방 조회가 끝난 뒤 원본을 확인할 시점의 시각을 사용한다.

@@ -26,7 +26,7 @@ public class AnonymousUserController {
             HttpServletRequest servletRequest
     ) {
         AnonymousUserSession session = anonymousUserService.getOrCreateAnonymousUser(
-                request.getNickname(), rawToken);
+                request.getNickname(), rawToken, servletRequest.getRemoteAddr());
         ResponseCookie cookie = AnonymousUserCookies.create(session.rawToken(), servletRequest.isSecure());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())

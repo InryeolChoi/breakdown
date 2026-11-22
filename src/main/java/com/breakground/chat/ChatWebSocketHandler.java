@@ -71,7 +71,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 "ERROR", exception.getStatusCode().value(),
                 reason == null ? "메시지를 처리할 수 없습니다." : reason);
         TextMessage error = chatMessageCodec.encodeError(response);
-        boolean terminate = exception.getStatusCode().value() != HttpStatus.BAD_REQUEST.value();
+        // 입력 오류와 전송 빈도 초과는 안내만 하고 연결을 유지한다.
+        int status = exception.getStatusCode().value();
+        boolean terminate = status != HttpStatus.BAD_REQUEST.value()
+                && status != HttpStatus.TOO_MANY_REQUESTS.value();
         // 방송과 같은 세션 객체를 잠가 오류 응답과 방송의 전송도 겹치지 않게 한다.
         synchronized (session) {
             try {

@@ -2,6 +2,8 @@ package com.breakground.chat;
 
 import com.breakground.anonymoususer.AnonymousUser;
 import com.breakground.anonymoususer.AnonymousUserService;
+import com.breakground.common.ratelimit.RateLimitProperties;
+import com.breakground.common.ratelimit.RateLimiter;
 import com.breakground.room.Room;
 import com.breakground.room.RoomRepository;
 import org.springframework.http.HttpStatus;
@@ -19,9 +21,14 @@ public class ChatService {
     private final MessageRepository messages;
     private final ChatProperties properties;
     private final Clock clock;
+    private final RateLimiter rateLimiter;
+    private final RateLimitProperties limits;
 
     public ChatService(RoomRepository rooms, AnonymousUserService users, MessageRepository messages,
-                       ChatProperties properties, Clock clock) {
+                       ChatProperties properties, Clock clock, RateLimiter rateLimiter,
+                       RateLimitProperties limits) {
+        this.rateLimiter = rateLimiter;
+        this.limits = limits;
         this.rooms = rooms;
         this.users = users;
         this.messages = messages;
@@ -34,6 +41,8 @@ public class ChatService {
         // PostgreSQL timestamp 정밀도에 맞춰 방 종료 직전 반올림을 피한다.
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
         AnonymousUser author = users.requireActiveUser(rawToken, now);
+        rateLimiter.acquireOrThrow("message", author.getId().toString(), limits.message(),
+                "메시지를 너무 빨리 보내고 있어요. 잠시 후 다시 보내주세요.");
         Room room = rooms.findById(roomId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "방을 찾을 수 없습니다."));
         if (!room.isOpen(now)) {

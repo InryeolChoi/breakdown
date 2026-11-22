@@ -16,3 +16,17 @@ chat:
 report:
   evidence-retention: 30d
   cleanup-interval-ms: 60000
+rate-limit:
+  session-issue:
+    capacity: 20
+    window: 1m
+  websocket-connect:
+    capacity: 60
+    window: 1m
+  message:
+    capacity: 5
+    window: 10s
+  report:
+    capacity: 10
+    window: 10m
+  room-connections: 200

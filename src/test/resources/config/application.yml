@@ -1,0 +1,15 @@
+# 통합 테스트는 고정 시계를 쓰므로 토큰이 다시 차지 않는다. 기존 테스트가 한도에 걸리지 않게 넉넉히 둔다.
+rate-limit:
+  session-issue:
+    capacity: 100000
+    window: 1m
+  websocket-connect:
+    capacity: 100000
+    window: 1m
+  message:
+    capacity: 100000
+    window: 10s
+  report:
+    capacity: 100000
+    window: 10m
+  room-connections: 100000

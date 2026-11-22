@@ -33,6 +33,11 @@ public class RoomSessionRegistry {
         }
     }
 
+    public int count(Integer roomId) {
+        Set<WebSocketSession> sessions = roomSetMap.get(roomId);
+        return sessions == null ? 0 : sessions.size();
+    }
+
     public void unregister(Integer roomId, WebSocketSession session) {
         Set<WebSocketSession> sessions = roomSetMap.get(roomId);
         if (sessions == null)

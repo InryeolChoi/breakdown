@@ -49,7 +49,7 @@ class AnonymousUserRepositoryTest {
     @Test
     void generatesKoreanNicknameWhenInputIsBlank() {
         AnonymousUser createdUser = anonymousUserService
-                .getOrCreateAnonymousUser(" ", null).user();
+                .getOrCreateAnonymousUser(" ", null, "127.0.0.1").user();
 
         assertTrue(createdUser.getNickname().length() <= 30);
         assertTrue(createdUser.getNickname().matches("[가-힣]+\\d{3}"));
@@ -58,8 +58,8 @@ class AnonymousUserRepositoryTest {
 
     @Test
     void revisitUsesTheSameUserAndStoresOnlyTokenHash() {
-        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null);
-        AnonymousUserSession revisit = anonymousUserService.getOrCreateAnonymousUser("다른이름", first.rawToken());
+        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null, "127.0.0.1");
+        AnonymousUserSession revisit = anonymousUserService.getOrCreateAnonymousUser("다른이름", first.rawToken(), "127.0.0.1");
 
         assertEquals(first.user().getId(), revisit.user().getId());
         assertEquals("오리", revisit.user().getNickname());
@@ -70,10 +70,10 @@ class AnonymousUserRepositoryTest {
 
     @Test
     void expiredUserReceivesANewTokenAndIdentity() {
-        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null);
+        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null, "127.0.0.1");
         first.user().recordVisit(LocalDateTime.now().minusDays(8));
 
-        AnonymousUserSession renewed = anonymousUserService.getOrCreateAnonymousUser("새오리", first.rawToken());
+        AnonymousUserSession renewed = anonymousUserService.getOrCreateAnonymousUser("새오리", first.rawToken(), "127.0.0.1");
 
         assertNotEquals(first.user().getId(), renewed.user().getId());
         assertNotEquals(first.rawToken(), renewed.rawToken());
@@ -82,11 +82,11 @@ class AnonymousUserRepositoryTest {
 
     @Test
     void activeBanDoesNotCreateANewUserEvenWhenIdleTimeExpired() {
-        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null);
+        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null, "127.0.0.1");
         first.user().recordVisit(LocalDateTime.now().minusDays(8));
         first.user().banForOneWeek(LocalDateTime.now());
 
-        AnonymousUserSession revisit = anonymousUserService.getOrCreateAnonymousUser(null, first.rawToken());
+        AnonymousUserSession revisit = anonymousUserService.getOrCreateAnonymousUser(null, first.rawToken(), "127.0.0.1");
 
         assertEquals(first.user().getId(), revisit.user().getId());
         assertEquals(UserStatus.BANNED, revisit.user().getStatus());
@@ -96,7 +96,7 @@ class AnonymousUserRepositoryTest {
     @Test
     void unknownCookieCreatesAFreshToken() {
         AnonymousUserSession session = anonymousUserService
-                .getOrCreateAnonymousUser("오리", "unrecognized-token");
+                .getOrCreateAnonymousUser("오리", "unrecognized-token", "127.0.0.1");
 
         assertNotEquals("unrecognized-token", session.rawToken());
         assertTrue(session.rawToken().matches("[A-Za-z0-9_-]{43}"));
@@ -107,13 +107,13 @@ class AnonymousUserRepositoryTest {
 
     @Test
     void visitTimestampIsUpdatedInPostgres() {
-        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null);
+        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null, "127.0.0.1");
         LocalDateTime previousVisit = LocalDateTime.now().minusDays(1);
         first.user().recordVisit(previousVisit);
         anonymousUserRepository.flush();
         entityManager.clear();
 
-        anonymousUserService.getOrCreateAnonymousUser(null, first.rawToken());
+        anonymousUserService.getOrCreateAnonymousUser(null, first.rawToken(), "127.0.0.1");
         anonymousUserRepository.flush();
         entityManager.clear();
 
@@ -123,12 +123,12 @@ class AnonymousUserRepositoryTest {
 
     @Test
     void expiredBanIsLiftedAndPersisted() {
-        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null);
+        AnonymousUserSession first = anonymousUserService.getOrCreateAnonymousUser("오리", null, "127.0.0.1");
         first.user().banForOneWeek(LocalDateTime.now().minusDays(8));
         anonymousUserRepository.flush();
         entityManager.clear();
 
-        AnonymousUserSession revisit = anonymousUserService.getOrCreateAnonymousUser(null, first.rawToken());
+        AnonymousUserSession revisit = anonymousUserService.getOrCreateAnonymousUser(null, first.rawToken(), "127.0.0.1");
         anonymousUserRepository.flush();
         entityManager.clear();
 
@@ -141,6 +141,6 @@ class AnonymousUserRepositoryTest {
     @Test
     void rejectsNicknameLongerThanThirtyCharacters() {
         assertThrows(IllegalArgumentException.class,
-                () -> anonymousUserService.getOrCreateAnonymousUser("a".repeat(31), null));
+                () -> anonymousUserService.getOrCreateAnonymousUser("a".repeat(31), null, "127.0.0.1"));
     }
 }

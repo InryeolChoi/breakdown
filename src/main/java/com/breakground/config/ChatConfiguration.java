@@ -1,6 +1,7 @@
 package com.breakground.config;
 
 import com.breakground.chat.ChatProperties;
+import com.breakground.common.ratelimit.RateLimitProperties;
 import com.breakground.report.ReportProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -11,7 +12,7 @@ import java.time.ZoneId;
 
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties({ChatProperties.class, ReportProperties.class})
+@EnableConfigurationProperties({ChatProperties.class, ReportProperties.class, RateLimitProperties.class})
 public class ChatConfiguration {
     @Bean
     public Clock applicationClock() {

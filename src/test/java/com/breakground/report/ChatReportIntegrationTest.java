@@ -62,8 +62,8 @@ class ChatReportIntegrationTest {
     void prepare() {
         clock.set(now);
         room = rooms.saveAndFlush(new Room("테스트방", LocalTime.of(10, 0), LocalTime.of(11, 0), true, true));
-        author = users.getOrCreateAnonymousUser("작성자", null);
-        reporter = users.getOrCreateAnonymousUser("신고자", null);
+        author = users.getOrCreateAnonymousUser("작성자", null, "127.0.0.1");
+        reporter = users.getOrCreateAnonymousUser("신고자", null, "127.0.0.1");
         author.user().recordVisit(now);
         reporter.user().recordVisit(now);
     }
@@ -99,7 +99,7 @@ class ChatReportIntegrationTest {
         UUID messageId = send("원본");
         report(messageId, reporter, 201);
         report(messageId, reporter, 409);
-        AnonymousUserSession other = users.getOrCreateAnonymousUser("다른신고자", null);
+        AnonymousUserSession other = users.getOrCreateAnonymousUser("다른신고자", null, "127.0.0.1");
         other.user().recordVisit(now);
         report(messageId, other, 201);
     }
