@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  images:
+  verify_images:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -22,10 +22,6 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
-      actions: read
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
       CI_RUN_ID: ${{ github.event.workflow_run.id }}
@@ -54,6 +50,49 @@ jobs:
           severity: CRITICAL
           exit-code: '1'
           cache: false
+      - name: Preserve the exact scanned images
+        id: archive
+        run: |
+          set -o pipefail
+          docker save "breakground-frontend:$RELEASE_SHA" "breakground-backend:$RELEASE_SHA" | gzip -1 > scanned-images.tar.gz
+          sha256sum scanned-images.tar.gz > scanned-images.sha256
+          printf 'name=scanned-images-%s\n' "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ${{ steps.archive.outputs.name }}
+          path: |
+            scanned-images.tar.gz
+            scanned-images.sha256
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+    outputs:
+      artifact: ${{ steps.archive.outputs.name }}
+
+  publish:
+    needs: verify_images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      CI_RUN_ID: ${{ github.event.workflow_run.id }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Load the archive from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT: ${{ needs.verify_images.outputs.artifact }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT"
+          sha256sum --check scanned-images.sha256
+          docker load --input scanned-images.tar.gz
       - name: Publish and record immutable image digests
         env:
           GH_TOKEN: ${{ github.token }}

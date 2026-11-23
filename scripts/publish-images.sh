@@ -9,7 +9,7 @@ trap 'rm -f "$previous_manifest"' EXIT
 
 # Only actual published manifests count. A skipped release workflow may also have a success conclusion.
 run_ids="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch main --status success --limit 20 \
-  --json databaseId,headSha --jq ".[] | select(.headSha != \"$RELEASE_SHA\") | .databaseId")"
+  --json databaseId --jq '.[].databaseId')"
 while read -r run_id; do
   [[ -n "$run_id" ]] || continue
   artifact_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts" \
@@ -19,7 +19,9 @@ while read -r run_id; do
     gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$archive"
     unzip -p "$archive" release.json > "$previous_manifest"
     rm -f "$archive"
-    break
+    prior_sha="$(jq -er '.sha | select(test("^[a-f0-9]{40}$"))' "$previous_manifest")"
+    if [[ "$prior_sha" != "$RELEASE_SHA" ]]; then break; fi
+    : > "$previous_manifest"
   fi
 done <<< "$run_ids"
 if [[ ! -s "$previous_manifest" ]]; then echo null > "$previous_manifest"; fi
@@ -32,23 +34,26 @@ printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-std
 publish() {
   local service="$1" ref="$registry-$1:$RELEASE_SHA" current digest local_config remote_config
   if current="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
-    local_config="$(docker image inspect "breakground-$service:$RELEASE_SHA" --format '{{.Id}}')"
-    remote_config="$(docker buildx imagetools inspect --raw "$ref" | jq -er .config.digest)"
+    local_config="$(docker image inspect "breakground-$service:$RELEASE_SHA" --format '{{.Id}}')" || return 1
+    remote_config="$(docker buildx imagetools inspect --raw "$ref" | jq -er .config.digest)" || return 1
     if [[ "$local_config" != "$remote_config" ]]; then
       printf 'Existing SHA tag for %s does not match the scanned image\n' "$ref" >&2
       return 1
     fi
     echo "Ref already published, refusing to overwrite $ref" >&2
   elif [[ "$current" == *'not found'* || "$current" == *'MANIFEST_UNKNOWN'* || "$current" == *'manifest unknown'* ]]; then
-    docker tag "breakground-$service:$RELEASE_SHA" "$ref"
-    docker push "$ref" >&2
-    current="$(docker buildx imagetools inspect "$ref")"
+    docker tag "breakground-$service:$RELEASE_SHA" "$ref" || return 1
+    docker push "$ref" >&2 || return 1
+    current="$(docker buildx imagetools inspect "$ref")" || return 1
   else
     printf 'Registry lookup failed for %s\n%s\n' "$ref" "$current" >&2
     return 1
   fi
   digest="$(awk '/^Digest:/ {print $2; exit}' <<< "$current")"
-  [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+  if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+    printf 'Invalid image digest for %s\n' "$ref" >&2
+    return 1
+  fi
   printf '%s@%s\n' "${ref%:*}" "$digest"
 }
 
