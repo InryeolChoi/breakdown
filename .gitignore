@@ -39,3 +39,7 @@ out/
 
 ### macOS ###
 .DS_Store
+
+# Browser test output
+/frontend/test-results/
+/frontend/playwright-report/

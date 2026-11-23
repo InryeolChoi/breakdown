@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'codex/**']
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Spring, PostgreSQL, frontend and browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: breakground
+          POSTGRES_USER: breakground
+          POSTGRES_PASSWORD: breakground
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U breakground"
+          --health-interval 3s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Run all Spring tests against PostgreSQL
+        run: ./gradlew --no-daemon test --rerun-tasks
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+      - name: Build and type-check frontend
+        run: |
+          npm --prefix frontend run build
+          npm --prefix frontend run typecheck
+      - name: Install Chromium for the browser suite
+        working-directory: frontend
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Exercise the live stack and assert test counts
+        run: bash scripts/ci-live.sh
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: validation-results
+          path: |
+            build/test-results/test/
+            build/ci/
+            frontend/test-results/
+          retention-days: 7
+
+  scan:
+    name: Diff and security scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check changed lines
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
+            BASE="$(git merge-base HEAD origin/main)"
+          fi
+          git diff --check "$BASE"...HEAD
+      - name: Scan for critical repository dependencies
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: CRITICAL
+          exit-code: '1'
+          cache: false
+      - name: Scan for committed secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '1'
+          cache: false
+
+  required:
+    name: Required CI
+    runs-on: ubuntu-24.04
+    needs: [tests, scan]
+    if: ${{ always() }}
+    steps:
+      - name: Require every mandatory job to succeed
+        env:
+          TESTS: ${{ needs.tests.result }}
+          SCAN: ${{ needs.scan.result }}
+        run: |
+          printf 'Required checks: tests=%s scan=%s\n' "$TESTS" "$SCAN"
+          test "$TESTS" = success && test "$SCAN" = success
