@@ -23,8 +23,24 @@ if (
 ):
     sys.exit(f"Missing or unsuccessful Node tests: {summary}")
 
+def browser_cases(suites):
+    for suite in suites:
+        for spec in suite.get("specs", []):
+            for case in spec["tests"]:
+                if case["status"] == "expected" and case["expectedStatus"] == "passed":
+                    yield (spec["title"], case["projectName"])
+        yield from browser_cases(suite.get("suites", []))
+
+
 with open(browser_path) as report:
-    stats = json.load(report)["stats"]
-if stats["expected"] < 4 or any(stats[key] for key in ("unexpected", "flaky", "skipped")):
-    sys.exit(f"Missing or unsuccessful browser tests: {stats}")
+    browser = json.load(report)
+stats = browser["stats"]
+required_browser_tests = {
+    (name, project)
+    for name in ("café is usable before choosing chat or a game", "mail plane delivers a shot and returns to the game shelf")
+    for project in ("desktop", "mobile")
+}
+missing_browser_tests = required_browser_tests - set(browser_cases(browser["suites"]))
+if missing_browser_tests or any(stats[key] for key in ("unexpected", "flaky", "skipped")):
+    sys.exit(f"Missing or unsuccessful browser tests: {stats}; missing {sorted(missing_browser_tests)}")
 print(f"Required tests executed: Spring {sum(int(s.attrib['tests']) for s in results)}, Node {summary['pass']}, Chromium {stats['expected']}")
