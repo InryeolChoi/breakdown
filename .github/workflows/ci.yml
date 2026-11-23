@@ -100,16 +100,48 @@ jobs:
           exit-code: '1'
           cache: false
 
+  image_scan:
+    name: Image scan (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: frontend
+            context: frontend
+          - service: backend
+            context: .
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build image for inspection
+        env:
+          SERVICE: ${{ matrix.service }}
+          BUILD_CONTEXT: ${{ matrix.context }}
+        run: docker build --platform linux/amd64 -t "breakground-ci-$SERVICE:scan" "$BUILD_CONTEXT"
+      - name: Reject Critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          image-ref: breakground-ci-${{ matrix.service }}:scan
+          scanners: vuln
+          severity: CRITICAL
+          exit-code: '1'
+          cache: false
+
   required:
     name: Required CI
     runs-on: ubuntu-24.04
-    needs: [tests, scan]
+    needs: [tests, scan, image_scan]
     if: ${{ always() }}
     steps:
       - name: Require every mandatory job to succeed
         env:
           TESTS: ${{ needs.tests.result }}
           SCAN: ${{ needs.scan.result }}
+          IMAGES: ${{ needs.image_scan.result }}
         run: |
-          printf 'Required checks: tests=%s scan=%s\n' "$TESTS" "$SCAN"
-          test "$TESTS" = success && test "$SCAN" = success
+          printf 'Required checks: tests=%s scan=%s images=%s\n' "$TESTS" "$SCAN" "$IMAGES"
+          test "$TESTS" = success && test "$SCAN" = success && test "$IMAGES" = success
