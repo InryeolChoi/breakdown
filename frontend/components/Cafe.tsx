@@ -70,6 +70,7 @@ export default function Cafe({ variant, initialActivity = null }: {
   const shelfRef = useRef<HTMLDivElement>(null);
   const appearanceRef = useRef<HTMLDetailsElement>(null);
   const activityHeading = useRef<HTMLHeadingElement>(null);
+  const selectedActivityButton = useRef<HTMLButtonElement | null>(null);
   const focusAfterSelection = useRef(false);
 
   useEffect(() => {
@@ -106,8 +107,13 @@ export default function Cafe({ variant, initialActivity = null }: {
   useEffect(() => {
     if (!focusAfterSelection.current) return;
     focusAfterSelection.current = false;
-    if (activity === null) shelfRef.current?.querySelector('button')?.focus({ preventScroll: true });
-    else activityHeading.current?.focus({ preventScroll: true });
+    if (activity === null) {
+      const button = selectedActivityButton.current;
+      const target = button?.isConnected ? button : shelfRef.current?.querySelector('button');
+      target?.focus({ preventScroll: true });
+    } else {
+      activityHeading.current?.focus({ preventScroll: true });
+    }
   }, [activity]);
 
   const disconnect = useCallback(() => {
@@ -225,7 +231,7 @@ export default function Cafe({ variant, initialActivity = null }: {
     <header className="cafe-header">
       <Link href="/minimal" className="wordmark" onNavigate={() => {
         if (!minimal) return;
-        setActivity(null);
+        if (activity !== null) chooseActivity(null);
         leave();
         if (mode !== 'live') setMode('live');
         window.scrollTo({ top: 0, behavior: 'instant' });
@@ -247,7 +253,10 @@ export default function Cafe({ variant, initialActivity = null }: {
         <div className="shelf-curtain-inner">
           <h1 className="entry-title">잠깐 쉬어요.</h1>
           <div className="activity-shelf" role="group" aria-label="쉬는 방법">
-            {activities.map(item => <button key={item.id} type="button" onClick={() => chooseActivity(item.id)}>
+            {activities.map(item => <button key={item.id} type="button" onClick={event => {
+              selectedActivityButton.current = event.currentTarget;
+              chooseActivity(item.id);
+            }}>
               <span className="activity-icon" aria-hidden="true">{item.icon}</span>
               {item.label}
             </button>)}
@@ -311,13 +320,13 @@ export default function Cafe({ variant, initialActivity = null }: {
         onClick={() => changeMode(mode === 'demo' ? 'live' : 'demo')}>
         {mode === 'demo' ? '실제 방 목록 보기' : '채팅 체험하기'}
       </button>}
-    </section>
       {showActivities && activity !== null && <button type="button" className="show-shelf"
         aria-controls="activity-shelf" aria-expanded={false} disabled={phase === 'connecting'}
         onClick={() => {
           window.scrollTo({ top: 0, behavior: 'instant' });
           chooseActivity(null);
         }}>선반 열기 <span aria-hidden="true">↓</span></button>}
+    </section>
     {minimal && <footer className="theme-dock">
       <details className="appearance-settings" ref={appearanceRef}>
         <summary aria-label="화면 분위기">

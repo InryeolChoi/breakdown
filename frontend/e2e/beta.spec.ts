@@ -3,15 +3,58 @@ import {expect, test} from '@playwright/test';
 test('café is usable before choosing chat or a game', async ({page}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', {name: '잠깐 쉬어요.'})).toBeVisible();
+  await expect(page.getByLabel('닉네임')).toHaveCount(0);
+  const shelf = page.getByRole('group', {name: '쉬는 방법', exact: true});
+  await expect(shelf).toBeInViewport();
+  const theme = page.locator('summary[aria-label="화면 분위기"]');
+  await theme.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', {name: '온기'})).toHaveAttribute('aria-pressed', 'true');
+  const glacier = page.getByRole('button', {name: '빙하'});
+  await glacier.focus();
+  await page.keyboard.press('Enter');
+  await expect(glacier).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(theme).toBeFocused();
+  await expect(page.getByRole('group', {name: '분위기 선택'})).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
   await page.getByRole('button', {name: '채팅', exact: true}).click();
   await expect(page.getByRole('heading', {name: '채팅방'})).toBeVisible();
   await expect(page.getByRole('radio').first()).toBeVisible();
   await page.getByRole('link', {name: 'breakground'}).click();
   await expect(page.getByRole('heading', {name: '잠깐 쉬어요.'})).toBeVisible();
-  await page.getByRole('button', {name: '게임', exact: true}).click();
-  await page.getByRole('link', {name: /메일비행기/}).click();
+  const game = page.getByRole('button', {name: '게임', exact: true});
+  await game.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', {name: '게임', exact: true})).toBeFocused();
+  const mailPlane = page.getByRole('link', {name: /메일비행기/});
+  await page.keyboard.press('Tab');
+  await expect(mailPlane).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', {name: '선반 열기'})).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(game).toBeFocused();
+  await game.click();
+  await mailPlane.click();
   await expect(page.getByRole('heading', {name: '메일비행기'})).toBeVisible();
+});
+
+test('the shelf remains usable when room loading fails or returns no rooms', async ({page}) => {
+  let roomsAvailable = false;
+  await page.route('**/api/rooms', async route => {
+    await route.fulfill(roomsAvailable
+      ? {json: []}
+      : {status: 503, json: {message: '방 목록을 불러오지 못했어요.'}});
+  });
+  await page.goto('/');
+  await page.getByRole('button', {name: '채팅', exact: true}).click();
+  await expect(page.getByRole('status')).toContainText('방 목록을 불러오지 못했어요.');
+  roomsAvailable = true;
+  await page.getByRole('button', {name: '다시 시도'}).click();
+  await expect(page.getByText('지금은 열린 방이 없어요.')).toBeVisible();
+  await page.getByRole('button', {name: '선반 열기'}).click();
+  await page.getByRole('button', {name: '명상', exact: true}).click();
+  await expect(page.getByRole('heading', {name: '명상', exact: true})).toBeVisible();
 });
 
 test('mail plane delivers a shot and returns to the game shelf', async ({page, isMobile}) => {
