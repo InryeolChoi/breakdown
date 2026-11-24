@@ -5,6 +5,8 @@
 .header button,.footer button{border:1px solid #a3b5a6;background:transparent;border-radius:4px;color:#3a5747;padding:10px 14px;min-height:42px}
 .title{display:flex;justify-content:space-between;align-items:flex-end;margin:25px 0 18px;gap:20px}.title p{font-size:12px;color:#6a796c;margin:0 0 7px}.title h1{font-size:clamp(24px,3vw,34px);line-height:1.2;letter-spacing:-1px;margin:0;font-weight:700}
 .score{display:flex;align-items:baseline;gap:12px}.score strong{font-size:32px;font-variant-numeric:tabular-nums;letter-spacing:-1px}.score span{font-size:12px;color:#697a6e;white-space:nowrap}
+.score .deliveryFeedback{color:#285d49}
+@media(max-width:600px){.score .deliveryFeedback{margin-inline-start:8px}}
 .stage{position:relative;width:100%;height:min(69svh,720px);min-height:410px;overflow:hidden;background:#d9e2dc;border:1px solid #afc0b3;border-radius:7px;isolation:isolate}
 .canvas{position:absolute;inset:0}.canvas canvas{display:block;width:100%;height:100%}
 .instructions{position:absolute;top:16px;left:50%;transform:translateX(-50%);max-width:90%;padding:10px 16px;background:#f9fcf0e6;border:1px solid #b9c9ba80;color:#2c5142;font-size:13px;text-align:center;pointer-events:none;border-radius:4px;white-space:nowrap}

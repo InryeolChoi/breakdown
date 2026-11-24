@@ -9,9 +9,9 @@ import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import styles from './PaperPlanePrototype.module.css';
 
 type Phase = 'mail' | 'folding' | 'ready' | 'flying' | 'result' | 'finished' | 'caught';
-type View = { phase: Phase; score: number; shots: number; feedback: string; watched: boolean; working: boolean };
+type View = { phase: Phase; score: number; shots: number; lastDeliveryPoints: number | null; watched: boolean; working: boolean };
 type Controls = { start: () => void; fire: () => void; work: () => void; pause: () => void };
-const initial: View = {phase: 'mail', score: 0, shots: 0, feedback: '', watched: false, working: false};
+const initial: View = {phase: 'mail', score: 0, shots: 0, lastDeliveryPoints: null, watched: false, working: false};
 const emails = ['퇴근 전에 이것만 부탁드려요.', '아까 자료, 처음부터 다시 해주세요.', '회의를 위한 사전 회의를 잡았습니다.', '참고로 급한 건입니다. 방금 보냈어요.', '수고하셨고, 한 가지만 더요.'];
 const clamp = T.MathUtils.clamp;
 const assetRoot = '/games/mail-plane-assets/';
@@ -513,7 +513,7 @@ export default function PaperPlanePrototype() {
     function completeDelivery() {
       const points = Math.max(65, Math.round(100 - (flightStart - readyAt) * 5));
       state.score += points;
-      state.feedback = `배달 성공! +${points}`;
+      state.lastDeliveryPoints = points;
       state.phase = state.shots === 5 ? 'finished' : 'result';
       impactAt = time;
       impact.position.copy(landing);
@@ -573,7 +573,6 @@ export default function PaperPlanePrototype() {
             if (age >= 7) {
               state.phase = 'caught';
               state.watched = true;
-              state.feedback = '동료와 눈이 마주쳤어요.';
               plane.visible = false;
               publish();
             } else if (age >= 5.6 && !state.watched) {
@@ -631,9 +630,10 @@ export default function PaperPlanePrototype() {
   const over = view.phase === 'finished' || view.phase === 'caught';
   const status = paused ? '잠깐 멈췄어요.'
     : view.phase === 'mail' ? '동료가 돌아보기 전에 화살표를 눌러요.'
-    : view.phase === 'folding' ? '다음 메일이 도착했어요.'
+    : view.phase === 'folding' || view.phase === 'result' ? '다음 메일을 준비하고 있어요.'
     : view.phase === 'flying' ? '날아가는 중…'
-    : view.phase === 'result' || over ? view.feedback
+    : view.phase === 'caught' ? '동료와 눈이 마주쳤어요.'
+    : view.phase === 'finished' ? ''
     : view.working ? '일하는 척하는 중. 동료가 지나갈 때까지 기다려요.'
     : view.watched ? '곧 이쪽을 봐요! 지금 날리거나 일하는 척해요.'
     : '화살표가 있는 동료를 눌러요.';
@@ -647,7 +647,12 @@ export default function PaperPlanePrototype() {
     </header>
     <div className={styles.title}>
       <h1>메일비행기</h1>
-      <div className={styles.score}><strong>{view.score}</strong><span>점수 · {view.shots}/5번</span></div>
+      <div className={styles.score}>
+        <strong>{view.score}</strong><span>점수 · {view.shots}/5번</span>
+        {view.lastDeliveryPoints !== null && <span role="status" className={styles.deliveryFeedback}>
+          배달 성공! +{view.lastDeliveryPoints}
+        </span>}
+      </div>
     </div>
     <section className={styles.stage} aria-label="메일비행기 게임" tabIndex={0}
       onKeyDown={event => {
@@ -669,7 +674,7 @@ export default function PaperPlanePrototype() {
         }} hidden={view.phase !== 'ready' || view.working}>
         <span aria-hidden="true">▼</span>
       </button>
-      <div className={styles.instructions} data-danger={view.watched && !paused} aria-live="polite">{status}</div>
+      {status && <div className={styles.instructions} data-danger={view.watched && !paused} aria-live="polite">{status}</div>}
       {over && <div className={styles.result}>
         <span>{view.phase === 'caught' ? '들켰어요 · 게임 오버' : '메일 5통 배달 완료'}</span>
         <strong>{view.score}점</strong>

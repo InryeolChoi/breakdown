@@ -10,6 +10,9 @@ test('mail plane finishes five deliveries and returns home', async ({page, isMob
   let previousScore = 0;
   for (let shot = 1; shot <= 5; shot++) {
     await expect(target).toBeVisible({timeout: 20_000});
+    if (shot === 2) {
+      await expect(page.getByText(/배달 성공! \+\d+/)).toBeVisible();
+    }
     if (isMobile) {
       const bounds = await target.boundingBox();
       if (!bounds) throw new Error('The target arrow is outside the viewport');
@@ -32,6 +35,7 @@ test('mail plane finishes five deliveries and returns home', async ({page, isMob
 
   await page.getByRole('button', {name: '다시 하기'}).click();
   await expect(page.getByText('점수 · 0/5번')).toBeVisible();
+  await expect(page.getByText(/배달 성공! \+\d+/)).toHaveCount(0);
   await expect(target).toBeVisible({timeout: 20_000});
   await page.getByRole('link', {name: '게임 목록'}).click();
   await expect(page.getByRole('list', {name: '게임 목록'})).toBeVisible();
