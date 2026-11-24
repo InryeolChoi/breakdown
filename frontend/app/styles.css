@@ -211,6 +211,11 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
   padding: clamp(30px, 7vh, 76px) 0;
   transform: none;
 }
+.minimal.entry-screen .conversation-console:has(.shelf-curtain[data-open=true]) {
+  display: grid;
+  flex: 1;
+  padding-block: clamp(24px, 7svh, 76px) 0;
+}
 .minimal .entry-title {
   margin: 0 0 clamp(24px, 5vw, 38px);
   font-size: clamp(38px, 6vw, 62px);
@@ -250,7 +255,6 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
   position: static;
   margin: auto 0 0;
   padding: 4px 0 16px;
-  border-top: 1px solid var(--m-line);
 }
 @media (max-width: 600px) {
   .minimal.entry-screen .entry-bottom { flex-direction: column; align-items: stretch; gap: 12px; }
@@ -269,6 +273,10 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
   list-style: none;
 }
 .minimal .appearance-settings summary::-webkit-details-marker { display: none; }
+.minimal .appearance-settings summary:focus-visible {
+  outline: 2px solid var(--m-accent);
+  outline-offset: 3px;
+}
 .minimal .appearance-settings summary span {
   position: absolute;
   top: 50%;
@@ -314,7 +322,7 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(6px, 2vw, 14px);
-  margin: 0 0 26px;
+  margin: 0 0 16px;
   position: relative;
   isolation: isolate;
   padding: 0 0 17px;
@@ -381,10 +389,8 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
   border-bottom: 0;
 }
 .minimal .show-shelf {
-  position: fixed;
-  z-index: 5;
-  right: clamp(18px, 5vw, 60px);
-  bottom: max(14px, env(safe-area-inset-bottom));
+  display: block;
+  margin: 24px 0 0 auto;
   min-height: 44px;
   padding: 8px 12px;
   border: 1px solid var(--m-line);
@@ -416,8 +422,7 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
   content: "";
   display: block;
   order: 1;
-  height: clamp(90px, 31svh, 360px);
-  flex-shrink: 0;
+  flex: 1 0 44px;
 }
 .minimal .shelf-curtain .activity-shelf { order: 2; flex-shrink: 0; }
 .minimal .shelf-curtain[data-open=false] { grid-template-rows: 0fr; }
