@@ -37,7 +37,11 @@ with open(browser_path) as report:
 stats = browser["stats"]
 required_browser_tests = {
     (name, project)
-    for name in ("café is usable before choosing chat or a game", "mail plane delivers a shot and returns to the game shelf")
+    for name in (
+        "café is usable before choosing chat or a game",
+        "mail plane delivers a shot and returns to the game shelf",
+        "a failed report stays readable and preserves the reason for retry",
+    )
     for project in ("desktop", "mobile")
 }
 missing_browser_tests = required_browser_tests - set(browser_cases(browser["suites"]))

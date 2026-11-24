@@ -31,3 +31,39 @@ test('mail plane delivers a shot and returns to the game shelf', async ({page, i
   await page.getByRole('link', {name: '게임 목록'}).click();
   await expect(page.getByRole('list', {name: '게임 목록'})).toBeVisible();
 });
+
+test('a failed report stays readable and preserves the reason for retry', async ({page, browser, baseURL}) => {
+  const senderContext = await browser.newContext({baseURL});
+  try {
+    const sender = await senderContext.newPage();
+    await Promise.all([page.goto('/minimal'), sender.goto('/minimal')]);
+    await Promise.all([page, sender].map(async participant => {
+      await participant.getByRole('button', {name: '채팅', exact: true}).click();
+      await participant.getByRole('radio').first().check();
+      await participant.getByRole('button', {name: '입장하기'}).click();
+      await expect(participant.getByRole('textbox', {name: '메시지', exact: true})).toBeEnabled();
+    }));
+    const message = '베타 신고 검증 메시지';
+    await sender.getByRole('textbox', {name: '메시지', exact: true}).fill(message);
+    await sender.getByRole('button', {name: '보내기', exact: true}).click();
+    const article = page.getByRole('article').filter({hasText: message});
+    await article.getByRole('button', {name: '신고', exact: true}).click();
+    const report = page.getByRole('dialog', {name: '이 메시지로 신고할까요?'});
+    const reason = report.getByRole('textbox', {name: '신고 사유'});
+    const submit = report.getByRole('button', {name: '신고하기'});
+    await reason.fill('신고 처리 검증용');
+    await page.route('**/api/rooms/*/reports', route => route.fulfill({
+      status: 429, json: {message: '신고 요청이 너무 많아요. 잠시 후 다시 시도해주세요.'},
+    }), {times: 1});
+    await submit.click();
+    await expect(report.getByRole('alert')).toHaveText(/신고 요청이 너무 많아요/);
+    await expect(reason).toHaveValue('신고 처리 검증용');
+    await expect(article.getByRole('button', {name: '신고됨'})).toHaveCount(0);
+    await submit.click();
+    await expect(report).toBeHidden();
+    await expect(article.getByRole('button', {name: '신고됨'})).toBeDisabled();
+    await expect(page.getByText('신고가 접수됐어요.', {exact: true})).toBeVisible();
+  } finally {
+    await senderContext.close();
+  }
+});
