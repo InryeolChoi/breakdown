@@ -556,7 +556,7 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
 }
 .minimal[data-theme=ice] .entry-mode-button { margin-top: 10px; padding-inline: 12px; }
 
-.report-dialog .report-error {
+.cafe .report-dialog .report-error {
   padding: 10px 12px;
   color: #762c25;
   background: #fff1e8;
