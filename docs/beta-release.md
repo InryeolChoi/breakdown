@@ -29,3 +29,15 @@ main push의 CI가 성공한 경우에만 해당 SHA를 체크아웃한다. Linu
 4. 정상 버전 두 digest와 Compose 설정을 기록한 뒤 `--no-deps`로 프런트와 백엔드만 교체한다. HTTPS 홈·방 목록·프록시 경로·쿠키 및 컨테이너 상태를 확인한다. 운영 방이 닫혀 있는 동안의 WSS는 정상적인 거절까지 확인할 수 있다. 채팅 왕복은 격리 환경 또는 승인된 운영 방에서 검증한다.
 5. 시험용 검증 실패를 한 번 유도해 이전 두 digest로 복구하고 같은 점검을 반복한다. 시험 단계에서 DB는 제자리 복원하지 않는다. 승인자, 시각, 배포·복구 SHA, digest 및 결과를 비밀값과 채팅 내용 없이 남긴다.
 6. 운영자가 시험 결과와 수동 배포 충돌 여부를 검토한 뒤 자동 실행 활성화를 별도로 승인한다.
+
+## 로컬 복구 리허설
+
+Docker Desktop에서 현재 후보와 이전 정상 프런트·백엔드 이미지가 로컬에 있을 때 실행한다.
+
+```sh
+bash scripts/rehearse-beta-recovery.sh FRONTEND BACKEND PREVIOUS_FRONTEND PREVIOUS_BACKEND
+```
+
+별도 Compose 프로젝트, 루프백 포트와 자체 테스트 인증서를 사용한다. 포트가 사용 중이면 `REHEARSAL_HTTP_PORT`와 `REHEARSAL_HTTPS_PORT`를 지정한다. 테스트 DB를 별도 DB에 복원한 뒤 방과 Flyway 이력 수를 대조한다. 앱 이미지를 이전 이미지로 바꿔 두 컨테이너의 이미지 ID와 HTTPS 응답을 확인하고 PostgreSQL 컨테이너가 유지됐는지 확인한다. 생성한 테스트 프로젝트와 볼륨은 종료 시 정리된다.
+
+운영의 실제 TLS, 접근 제어, SSH 제한 및 승인된 시험 배포는 BG-01과 BG-06에서 별도로 기록한다. 로컬 리허설의 성공 여부를 운영 배포 승인으로 사용하지 않는다.
