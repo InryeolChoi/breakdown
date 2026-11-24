@@ -548,11 +548,14 @@ export default function PaperPlanePrototype() {
     const observer=new ResizeObserver(resize);observer.observe(mount);resize();
     prepareAssets();
     renderer.setAnimationLoop((now:number)=>{
-      const dt=last?Math.min((now-last)/1000,.034):0;last=now;
+      const elapsed = last ? (now - last) / 1000 : 0;
+      const movementStep = Math.min(elapsed, .034);
+      last = now;
       if(!paused) {
-        time+=dt;
+        // Keep deadlines responsive on slow GPUs while bounding updates after a stall.
+        time += Math.min(elapsed, .25);
         if (state.phase === 'result' && time - impactAt >= .82) foldMail();
-        targets.forEach((target, index) => updateCoworker(target, index, dt));
+        targets.forEach((target, index) => updateCoworker(target, index, movementStep));
         if (state.phase === 'ready') {
           if (targetIndex === -1 || !inView(projectHead(targetIndex).project(camera))) {
             const replacement = findTarget();

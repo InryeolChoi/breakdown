@@ -7,6 +7,7 @@ test('mail plane finishes five deliveries and returns home', async ({page, isMob
   const stage = page.getByRole('region', {name: '메일비행기 게임'});
   const target = page.getByRole('button', {name: '표시된 동료에게 메일 날리기'});
 
+  let previousScore = 0;
   for (let shot = 1; shot <= 5; shot++) {
     await expect(target).toBeVisible({timeout: 20_000});
     if (isMobile) {
@@ -16,8 +17,11 @@ test('mail plane finishes five deliveries and returns home', async ({page, isMob
     } else {
       await stage.press('Enter');
     }
-    await expect(page.getByText(`점수 · ${shot}/5번`)).toBeVisible();
-    await expect(page.getByText(/배달 성공/)).toBeVisible({timeout: 20_000});
+    const shotCount = page.getByText(`점수 · ${shot}/5번`, {exact: true});
+    await expect(shotCount).toBeVisible();
+    const score = shotCount.locator('..').locator('strong');
+    await expect.poll(async () => Number(await score.innerText()), {timeout: 20_000}).toBeGreaterThan(previousScore);
+    previousScore = Number(await score.innerText());
   }
 
   await expect(page.getByText('메일 5통 배달 완료')).toBeVisible();
@@ -42,10 +46,26 @@ test('mail plane warns before getting caught and can restart', async ({page, isM
   const stage = page.getByRole('region', {name: '메일비행기 게임'});
   const target = page.getByRole('button', {name: '표시된 동료에게 메일 날리기'});
   await expect(target).toBeVisible({timeout: 20_000});
-  const work = page.getByRole('button', {name: '일하는 척', exact: true});
-  await expect(work).toBeVisible({timeout: 60_000});
-  if (isMobile) await work.tap();
-  else await stage.press('f');
+  // Respond in the frame that reveals the warning. Driver round trips can
+  // exceed the brief reaction window on a shared software-rendered runner.
+  await stage.evaluate((element, mobile) => new Promise<void>((resolve, reject) => {
+    const observer = new MutationObserver(tryWork);
+    const deadline = setTimeout(() => {
+      observer.disconnect();
+      reject(new Error('The warning did not offer an option to work'));
+    }, 60_000);
+    function tryWork() {
+      const work = [...element.querySelectorAll('button')].find(button => button.textContent?.trim() === '일하는 척');
+      if (!work || work.disabled) return;
+      observer.disconnect();
+      clearTimeout(deadline);
+      if (mobile) work.click();
+      else element.dispatchEvent(new KeyboardEvent('keydown', {key: 'f', bubbles: true}));
+      resolve();
+    }
+    observer.observe(element, {childList: true, subtree: true});
+    tryWork();
+  }), isMobile);
   await expect(page.getByText(/일하는 척하는 중/)).toBeVisible();
   await expect(target).toBeHidden();
   await expect(target).toBeVisible({timeout: 60_000});
