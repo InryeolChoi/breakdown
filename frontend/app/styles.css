@@ -555,3 +555,11 @@ body:has(.minimal[data-theme=bamboo]){background:#e1e9d9}
   background: #ffffffe0;
 }
 .minimal[data-theme=ice] .entry-mode-button { margin-top: 10px; padding-inline: 12px; }
+
+.cafe .report-dialog .report-error {
+  padding: 10px 12px;
+  color: #762c25;
+  background: #fff1e8;
+  border-left: 3px solid #a65340;
+  font-size: 13px;
+}

@@ -55,6 +55,7 @@ export default function Cafe({ variant, initialActivity = null }: {
   const [theme, setTheme] = useState<Theme>('warm');
   const [reportTarget, setReportTarget] = useState<ChatMessage | null>(null);
   const [reason, setReason] = useState('');
+  const [reportError, setReportError] = useState('');
   const [reportBusy, setReportBusy] = useState(false);
   const [reported, setReported] = useState<string[]>([]);
   const [pending, setPending] = useState(0);
@@ -208,12 +209,13 @@ export default function Cafe({ variant, initialActivity = null }: {
   async function report(event: FormEvent) {
     event.preventDefault(); if (!reportTarget || !activeRoom || reportBusy) return;
     if (!reason.trim()) return;
+    setReportError('');
     setReportBusy(true); const current = generation.current; const id = reportTarget.id;
     try {
       if (mode === 'live') await request(`/rooms/${activeRoom.id}/reports`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messageId: id, reason: reason.trim() }) });
       if (generation.current !== current) return;
       setReported(old => [...old, id]); setReportTarget(null); setReason(''); setNotice(mode === 'demo' ? '신고 화면 체험을 마쳤어요. 실제 신고는 접수되지 않았어요.' : '신고가 접수됐어요.');
-    } catch (error) { if (generation.current === current) setNotice(error instanceof Error ? error.message : '신고를 접수하지 못했어요.'); }
+    } catch (error) { if (generation.current === current) setReportError(error instanceof Error ? error.message : '신고를 접수하지 못했어요.'); }
     finally { setReportBusy(false); }
   }
   return <main className={`cafe ${variant}${minimal && entering ? " entry-screen" : ""}`} data-theme={variant === 'minimal' ? theme : undefined} data-phase={phase}>
@@ -299,7 +301,7 @@ export default function Cafe({ variant, initialActivity = null }: {
       </form> : <div className="chat-panel"><div className="chat-heading"><div><h2>{activeRoom?.name}</h2><p><strong>{user?.nickname}</strong>으로 쉬는 중</p></div><button className="leave" onClick={leave}>{phase === 'closed' ? '다시 입장' : '나가기'}</button></div>
         <div className="transcript" ref={transcript} role="log" aria-label="대화 내용" aria-live="polite" aria-relevant="additions text">
           <p className="chat-welcome">{mode === 'demo' ? '체험 도우미가 예시 답변을 보내요.' : '입장 후 도착하는 대화부터 보여요.'}</p>
-          {messages.map(message => <article className={`message ${message.authorId === user?.id ? 'mine' : ''}`} key={message.id}><div className="message-meta"><strong>{message.authorId === user?.id ? `${message.nickname} (나)` : message.nickname}</strong><time>{displayTime(message.sentAt)}</time>{message.authorId !== user?.id && <button disabled={reported.includes(message.id) || phase !== 'connected'} onClick={() => { setReportTarget(message); setReason(''); setNotice(''); }}>{reported.includes(message.id) ? '신고됨' : '신고'}</button>}</div><p>{message.content}</p></article>)}
+          {messages.map(message => <article className={`message ${message.authorId === user?.id ? 'mine' : ''}`} key={message.id}><div className="message-meta"><strong>{message.authorId === user?.id ? `${message.nickname} (나)` : message.nickname}</strong><time>{displayTime(message.sentAt)}</time>{message.authorId !== user?.id && <button disabled={reported.includes(message.id) || phase !== 'connected'} onClick={() => { setReportTarget(message); setReason(''); setReportError(''); setNotice(''); }}>{reported.includes(message.id) ? '신고됨' : '신고'}</button>}</div><p>{message.content}</p></article>)}
         </div>
         <ChatComposer phase={phase} pending={pending} onSend={send} />
       </div>}
@@ -329,7 +331,7 @@ export default function Cafe({ variant, initialActivity = null }: {
         </div>
       </details>
     </footer>}
-    {reportTarget && <div className="modal-backdrop"><section className="report-dialog" role="dialog" aria-modal="true" aria-labelledby="report-title"><h2 id="report-title">이 메시지로 신고할까요?</h2><blockquote>{reportTarget.content}</blockquote><form onSubmit={report}><label htmlFor="reason">신고 사유</label><textarea autoFocus id="reason" maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="어떤 점이 문제였는지 적어주세요." required/><p>{mode === 'demo' ? '체험 모드예요. 실제 신고는 접수되지 않아요.' : '메시지 원본과 신고 사유를 서버에 보내요.'}</p><div><button type="button" onClick={() => setReportTarget(null)} disabled={reportBusy}>취소</button><button className="primary-action" disabled={!reason.trim() || reportBusy}>{reportBusy ? '접수 중…' : '신고하기'}</button></div></form></section></div>}
+    {reportTarget && <div className="modal-backdrop"><section className="report-dialog" role="dialog" aria-modal="true" aria-labelledby="report-title"><h2 id="report-title">이 메시지로 신고할까요?</h2><blockquote>{reportTarget.content}</blockquote><form onSubmit={report}><label htmlFor="reason">신고 사유</label><textarea autoFocus id="reason" maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="어떤 점이 문제였는지 적어주세요." required/><p>{mode === 'demo' ? '체험 모드예요. 실제 신고는 접수되지 않아요.' : '메시지 원본과 신고 사유를 서버에 보내요.'}</p>{reportError && <p className="report-error" role="alert">{reportError}</p>}<div><button type="button" onClick={() => setReportTarget(null)} disabled={reportBusy}>취소</button><button className="primary-action" disabled={!reason.trim() || reportBusy}>{reportBusy ? '접수 중…' : '신고하기'}</button></div></form></section></div>}
   </main>;
 }
 
