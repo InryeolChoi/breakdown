@@ -40,6 +40,8 @@ required_browser_tests = {
     for name in (
         "café is usable before choosing chat or a game",
         "mail plane delivers a shot and returns to the game shelf",
+        "mail plane finishes five deliveries and returns home",
+        "mail plane warns before getting caught and can restart",
         "a failed report stays readable and preserves the reason for retry",
     )
     for project in ("desktop", "mobile")
