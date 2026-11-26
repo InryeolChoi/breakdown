@@ -16,6 +16,78 @@
 @media(max-width:600px){.game{padding:16px 12px}.header>span{display:none}.header a{font-size:18px}.header button{padding:8px 11px;font-size:11px}.title{margin:22px 3px 16px}.title h1{font-size:24px}.score{display:block;text-align:right}.score strong{font-size:28px;display:block}.score span{font-size:10px}.stage{height:65svh;min-height:440px}.instructions{font-size:11px;padding:9px 11px;white-space:normal;width:max-content;max-width:92%}.footer{flex-wrap:wrap;gap:10px;font-size:10px}.footer>span:first-child{flex:1}.footer>span:last-child{width:100%;text-align:left}.actions button{font-size:13px;min-height:46px}}
 @media(prefers-reduced-motion:reduce){.actions button:active:not(:disabled){transform:none}}
 .instructions[data-danger=true]{background:#fff0dd;color:#7c291e;border-color:#bb6a54}
+.aimMeter, .powerMeter {
+  position: absolute;
+  left: 50%;
+  bottom: 116px;
+  translate: -50% 0;
+  width: min(190px, 60%);
+  height: 18px;
+  border: 2px solid #dce8db;
+  border-radius: 12px;
+  background: #263d36;
+  box-shadow: 0 2px 8px #172c285e;
+  pointer-events: none;
+}
+.powerMeter { bottom: 86px; }
+.meterLabel {
+  position: absolute;
+  right: calc(100% + 5px);
+  top: -2px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #263d36;
+  color: #fffdf0;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.powerFill {
+  position: absolute;
+  inset: 2px auto 2px 0;
+  width: var(--pull-power, 0%);
+  border-radius: 8px;
+  background: #e9ac63;
+}
+.idealPower {
+  position: absolute;
+  inset: -3px auto -3px var(--ideal-power, 50%);
+  width: 3px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #253e36;
+}
+.aimZone {
+  position: absolute;
+  inset: 2px auto 2px 50%;
+  translate: -50% 0;
+  width: var(--aim-zone, 66%);
+  border-radius: 8px;
+  background: #93bd9e;
+}
+.aimNeedle {
+  position: absolute;
+  inset: -4px auto -4px var(--aim-position, 0%);
+  translate: -50% 0;
+  width: 6px;
+  border-radius: 4px;
+  background: #ffc971;
+  box-shadow: 0 0 0 1px #253e36;
+}
+.aimMeter[data-aligned=true] .aimNeedle { background: #fff; }
+.crosshair {
+  position: absolute;
+  z-index: 2;
+  translate: -50% -50%;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #ffc971;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffaf0 1px, transparent 3px);
+  box-shadow: 0 0 0 1px #253e36;
+  pointer-events: none;
+}
+.crosshair[data-aligned=true] { border-color: #fff; }
+.stage:has(.crosshair:not([hidden])) .aimMeter { visibility: hidden; }
 
 .targetButton {
   position: absolute;
@@ -26,9 +98,12 @@
   border: 0;
   background: transparent;
   color: #563009;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   transform: translate(-50%, -38px);
 }
+.targetButton:active { cursor: grabbing; }
 .targetButton:not([hidden]) { display: grid; place-items: start center; }
 .targetButton span {
   display: grid;

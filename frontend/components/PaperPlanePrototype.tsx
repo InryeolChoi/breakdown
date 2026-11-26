@@ -1,21 +1,27 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import * as T from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
+import { scoreDelivery } from '../lib/mail-plane-score';
 import styles from './PaperPlanePrototype.module.css';
 
 type Phase = 'mail' | 'folding' | 'ready' | 'flying' | 'result' | 'finished' | 'caught';
-type View = { phase: Phase; score: number; shots: number; lastDeliveryPoints: number | null; watched: boolean; working: boolean };
-type Controls = { start: () => void; fire: () => void; work: () => void; pause: () => void };
-const initial: View = {phase: 'mail', score: 0, shots: 0, lastDeliveryPoints: null, watched: false, working: false};
+type View = { phase: Phase; score: number; shots: number; delivered: number; lastDeliveryPoints: number | null; watched: boolean; working: boolean };
+type PullShot = { power: number; aimX: number };
+type Controls = { start: () => void; fire: (shot?: PullShot) => void; work: () => void; pause: () => void };
+type ArrowPull = { pointerId: number; x: number; y: number; width: number; aimX: number; shots: number };
+const MAX_PULL_PX = 100;
+const MIN_PULL = .14;
+const initial: View = {phase: 'mail', score: 0, shots: 0, delivered: 0, lastDeliveryPoints: null, watched: false, working: false};
 const emails = ['퇴근 전에 이것만 부탁드려요.', '아까 자료, 처음부터 다시 해주세요.', '회의를 위한 사전 회의를 잡았습니다.', '참고로 급한 건입니다. 방금 보냈어요.', '수고하셨고, 한 가지만 더요.'];
 const clamp = T.MathUtils.clamp;
 const assetRoot = '/games/mail-plane-assets/';
 const seatX = -5.6;
+const aimCycleSeconds = 3.4;
 
 function walkingLoop(x: number, z: number, width: number, depth: number) {
   return new T.CatmullRomCurve3([
@@ -27,11 +33,63 @@ function walkingLoop(x: number, z: number, width: number, depth: number) {
 export default function PaperPlanePrototype() {
   const host = useRef<HTMLDivElement>(null);
   const targetButton = useRef<HTMLButtonElement>(null);
+  const aimMeter = useRef<HTMLDivElement>(null);
+  const powerMeter = useRef<HTMLDivElement>(null);
+  const crosshair = useRef<HTMLDivElement>(null);
+  const arrowPull = useRef<ArrowPull | null>(null);
+  const pullShot = useRef<PullShot | null>(null);
   const controls = useRef<Controls | null>(null);
   const [view,setView] = useState<View>(initial);
   const [paused,setPaused] = useState(false);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "webgl-error" | "asset-error">("loading");
   const unavailable = loadState !== "ready";
+
+  function showPull(shot: PullShot | null) {
+    pullShot.current = shot;
+    powerMeter.current?.style.setProperty('--pull-power', `${(shot?.power ?? 0) * 100}%`);
+    const marker = crosshair.current;
+    if (!marker) return;
+    marker.hidden = !shot;
+    if (shot) marker.style.left = `${shot.aimX * 100}%`;
+  }
+
+  function readPull(pull: ArrowPull, event: ReactPointerEvent<HTMLButtonElement>): PullShot {
+    return {
+      power: clamp((event.clientY - pull.y) / MAX_PULL_PX, 0, 1),
+      aimX: clamp(pull.aimX + (event.clientX - pull.x) / pull.width, .04, .96),
+    };
+  }
+
+  function startArrowPull(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!event.isPrimary || event.button !== 0 || paused || arrowPull.current) return;
+    const stage = host.current?.getBoundingClientRect();
+    if (!stage?.width) return;
+    const arrow = event.currentTarget.getBoundingClientRect();
+    const aimX = (arrow.left + arrow.width / 2 - stage.left) / stage.width;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    arrowPull.current = {pointerId: event.pointerId, x: event.clientX, y: event.clientY, width: stage.width, aimX, shots: view.shots};
+    showPull({power: 0, aimX});
+  }
+
+  function cancelArrowPull(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (arrowPull.current?.pointerId !== event.pointerId) return;
+    arrowPull.current = null;
+    showPull(null);
+  }
+
+  function moveArrowPull(event: ReactPointerEvent<HTMLButtonElement>) {
+    const pull = arrowPull.current;
+    if (pull?.pointerId === event.pointerId) showPull(readPull(pull, event));
+  }
+
+  function finishArrowPull(event: ReactPointerEvent<HTMLButtonElement>) {
+    const pull = arrowPull.current;
+    if (pull?.pointerId !== event.pointerId) return;
+    const shot = readPull(pull, event);
+    cancelArrowPull(event);
+    if (pull.shots === view.shots && shot.power >= MIN_PULL) controls.current?.fire(shot);
+  }
+
   useEffect(()=>{
     const mount = host.current;
     if (!mount) return;
@@ -45,17 +103,17 @@ export default function PaperPlanePrototype() {
     renderer.domElement.setAttribute('aria-hidden', 'true');
     mount.appendChild(renderer.domElement);
     const scene = new T.Scene();
-    scene.fog = new T.Fog('#e5e9e8',20,49);
+    scene.fog = new T.Fog('#e5e9e8',14,43);
     const camera = new T.PerspectiveCamera(48,1,.1,65);
-    camera.position.set(seatX, 2.16, 6.7);
+    camera.position.set(seatX + .27, 1.69, 5.54);
     const sunlight = new T.DirectionalLight('#fff4d9',2.4);
     sunlight.position.set(0,13,-3); sunlight.target.position.set(-3,0,-10); scene.add(sunlight.target); sunlight.castShadow=true;
     sunlight.shadow.mapSize.set(1024,1024);
     Object.assign(sunlight.shadow.camera,{left:-12,right:12,top:12,bottom:-15,near:.5,far:40});
     sunlight.shadow.bias=-.0005; scene.add(sunlight);
-    scene.add(new T.HemisphereLight('#e4f3ff','#b7b09d',1.6));
+    scene.add(new T.HemisphereLight('#e4f3ff','#9f9286',1.25));
     const faceLight = new T.DirectionalLight('#fff0de', 1.15);
-    faceLight.position.set(seatX - 3, 3.6, 8);
+    faceLight.position.set(seatX - 3, 2.8, 6);
     scene.add(faceLight);
     const material = (color: T.ColorRepresentation) => new T.MeshStandardMaterial({color,roughness:.85});
     const mailOrigin = new T.Vector3(seatX + .18, 1.49, 3.63);
@@ -76,7 +134,8 @@ export default function PaperPlanePrototype() {
     box(.25, 5.6, 50, cream, -13, 2.7, -15);
     box(26, 5.6, .25, cream, 0, 2.7, -39);
     box(.2, 5.6, 50, cream, 13, 2.7, -15);
-    box(26, .15, 52, cream, 0, 5.55, -15).castShadow = false;
+    const ceiling = new T.MeshBasicMaterial({color:'#c1beb3'});
+    box(26, .15, 52, ceiling, 0, 5.55, -15).castShadow = false;
     box(.12, 3.25, 38, glass, 12.81, 3.34, -14);
     for (let z = -33; z < 8; z += 5.5) {
       box(.13, 3.3, .12, steel, 12.7, 3.34, z);
@@ -224,17 +283,22 @@ export default function PaperPlanePrototype() {
       walkingLoop(-7.48, -14, .22, 15.6),
     ];
     const routeLengths = routes.map(route => route.getLength());
-    const seatProgress = .9;
-    const seatPath = routes[0].getPointAt(seatProgress);
-    const officeSeat = seatPath.clone().add(new T.Vector3(-.5, 0, 0));
-    box(.53, .09, .55, chairFabric, officeSeat.x, .52, officeSeat.z);
-    box(.09, .53, .51, chairFabric, officeSeat.x - .26, .81, officeSeat.z);
-    box(.085, .44, .085, steel, officeSeat.x, .26, officeSeat.z);
-    box(.53, .045, .39, steel, officeSeat.x, .07, officeSeat.z);
+    // The first coworker's chair is part of the existing desk row at z = -4.
+    const officeSeat = new T.Vector3(-5.6, 0, -4 + 1.35);
+    let seatProgress = 0;
+    let closestSeatApproach = Infinity;
+    for (let sample = 0; sample < 100; sample++) {
+      const progress = sample / 100;
+      const distance = routes[0].getPointAt(progress).distanceToSquared(officeSeat);
+      if (distance < closestSeatApproach) {
+        closestSeatApproach = distance;
+        seatProgress = progress;
+      }
+    }
     const targets = Array.from({length: 20}, (_, index) => {
       const routeIndex = index % routes.length;
       const route = routes[routeIndex];
-      const progress = index === 0 ? .78 : (Math.floor(index / routes.length) * .25 + routeIndex * .08) % 1;
+      const progress = index === 0 ? (seatProgress + .89) % 1 : (Math.floor(index / routes.length) * .25 + routeIndex * .08) % 1;
       const group = new T.Group();
       const heightScale = .96 + (index % 5) * .025;
       group.scale.setScalar(heightScale);
@@ -345,11 +409,18 @@ export default function PaperPlanePrototype() {
     let state = {...initial}, paused = false, time = 0, last = 0;
     let foldStart = 0, readyAt = 0, flightStart = 0, flightDuration = 0, impactAt = -Infinity;
     let targetIndex = -1, previousTargetIndex = -1;
+    let shotPoints = 0;
+    let missOffset = 0;
+    let fixedFlight = false;
+    let aimPosition = 0;
     const launch = new T.Vector3(seatX + .64, 1.38, 4.19);
     const tangent = new T.Vector3(), projected = new T.Vector3();
-    const landing = new T.Vector3(), flightDirection = new T.Vector3(), previousFlightPosition = new T.Vector3();
-    const seatedForward = new T.Vector3(1, -.08, 0), seatedDown = new T.Vector3(.12, -1, 0);
-    const seatedToe = new T.Vector3(1, -.25, 0);
+    const landing = new T.Vector3(), flightOrigin = new T.Vector3();
+    const flightDirection = new T.Vector3(), previousFlightPosition = new T.Vector3();
+    const seatedFacing = new T.Vector3(0, 0, -1);
+    const seatedForward = new T.Vector3(0, -.08, -1), seatedDown = new T.Vector3(0, -1, -.12);
+    const seatedToe = new T.Vector3(0, -.25, -1);
+    const seatWalkDirection = new T.Vector3();
     const poseDirection = new T.Vector3(), poseSource = new T.Vector3();
     const poseTurn = new T.Quaternion(), parentRotation = new T.Quaternion();
     const worldUp = new T.Vector3(0, 1, 0);
@@ -429,7 +500,8 @@ export default function PaperPlanePrototype() {
       const sitting = index === 0 && seatAge < 5.8;
       if (!sitting) {
         const next = (target.progress + target.speed * dt / target.routeLength) % 1;
-        if (index === 0 && target.progress < seatProgress && next >= seatProgress) {
+        const distanceToSeat = (seatProgress - target.progress + 1) % 1;
+        if (index === 0 && distanceToSeat > 0 && distanceToSeat <= target.speed * dt / target.routeLength) {
           target.progress = seatProgress;
           target.seatedAt = time;
           seatAge = 0;
@@ -437,12 +509,14 @@ export default function PaperPlanePrototype() {
       }
       target.route.getPointAt(target.progress, target.group.position);
       target.route.getTangentAt(target.progress, tangent);
-      const sit = clamp(Math.min((seatAge - .55) / .46, (5.25 - seatAge) / .48), 0, 1);
+      const sit = clamp(Math.min((seatAge - 1.05) / .46, (4.7 - seatAge) / .48), 0, 1);
       if (seatAge < 5.8) {
-        const step = clamp(Math.min(seatAge / .55, (5.8 - seatAge) / .55), 0, 1);
+        const step = clamp(Math.min(seatAge / 1.05, (5.8 - seatAge) / 1.05), 0, 1);
+        seatWalkDirection.copy(officeSeat).sub(target.group.position).normalize();
+        if (seatAge >= 4.7) seatWalkDirection.negate();
+        tangent.copy(seatWalkDirection).lerp(seatedFacing, step);
         target.group.position.lerp(officeSeat, step);
         target.group.position.y -= .36 * sit;
-        tangent.lerp(seatedForward, step);
       }
       const turn = Math.atan2(tangent.x, tangent.z) - target.group.rotation.y;
       target.group.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * Math.min(1, dt * 7);
@@ -475,12 +549,14 @@ export default function PaperPlanePrototype() {
       targetIndex = -1;
       plane.visible = true;
       plane.position.copy(mailOrigin);
-      plane.scale.setScalar(.1);
+      plane.scale.setScalar(.08);
       paintMail(state.shots);
       publish();
     }
 
     function start() {
+      arrowPull.current = null;
+      showPull(null);
       state = {...initial};
       targetIndex = -1;
       impactAt = -Infinity;
@@ -489,12 +565,37 @@ export default function PaperPlanePrototype() {
       foldMail();
     }
 
-    function fire() {
+    function idealPower() {
+      const distance = targets[targetIndex].group.position.distanceTo(launch);
+      return clamp(.34 + distance * .032, .42, .82);
+    }
+
+    function directionError(aimX: number) {
+      const targetX = (projectHead(targetIndex).project(camera).x + 1) / 2;
+      return Math.abs(aimX - targetX) / (.13 - .012 * state.shots);
+    }
+
+    function fire(shot?: PullShot) {
       if (paused || state.phase !== 'ready' || state.working || targetIndex < 0) return;
       if (!inView(projectHead(targetIndex).project(camera))) return;
+      const aimError = shot ? directionError(shot.aimX) : Math.abs(aimPosition - .5) / aimTolerance();
+      const ideal = idealPower();
+      const launchPower = shot?.power ?? ideal;
+      const powerError = launchPower - ideal;
+      shotPoints = scoreDelivery(aimError, powerError);
+      missOffset = shotPoints ? 0 : powerError * 4;
+      flightOrigin.copy(launch);
+      flightOrigin.z += (shot?.power ?? 0) * .23;
       updateLanding();
-      flightDirection.copy(landing).sub(launch);
-      flightDuration = clamp(flightDirection.length() / 12, .45, 1.35);
+      fixedFlight = !!shot;
+      if (shot) {
+        landing.project(camera);
+        landing.x = shot.aimX * 2 - 1;
+        landing.unproject(camera);
+        if (!shotPoints) landing.z -= missOffset;
+      }
+      flightDirection.copy(landing).sub(flightOrigin);
+      flightDuration = clamp(flightDirection.length() / (8 + launchPower * 8), .4, 1.5);
       flightStart = time;
       state.phase = 'flying';
       state.watched = false;
@@ -505,17 +606,32 @@ export default function PaperPlanePrototype() {
     function work() {
       if (paused || state.phase !== 'ready' || !state.watched || state.working) return;
       state.working = true;
+      arrowPull.current = null;
+      showPull(null);
       plane.visible = false;
       paintWork();
       publish();
     }
 
+    function aimTolerance() {
+      return .33 - .025 * state.shots;
+    }
+
+    function updateAim(age: number) {
+      aimPosition = (age / aimCycleSeconds) % 1;
+      const meter = aimMeter.current;
+      if (!meter) return;
+      meter.style.setProperty('--aim-position', `${aimPosition * 100}%`);
+      meter.style.setProperty('--aim-zone', `${aimTolerance() * 200}%`);
+      meter.dataset.aligned = String(Math.abs(aimPosition - .5) <= aimTolerance());
+    }
+
     function completeDelivery() {
-      const points = Math.max(65, Math.round(100 - (flightStart - readyAt) * 5));
-      state.score += points;
-      state.lastDeliveryPoints = points;
+      state.score += shotPoints;
+      if (shotPoints > 0) state.delivered++;
+      state.lastDeliveryPoints = shotPoints;
       state.phase = state.shots === 5 ? 'finished' : 'result';
-      impactAt = time;
+      if (shotPoints > 0) impactAt = time;
       impact.position.copy(landing);
       impact.lookAt(camera.position);
       plane.visible = false;
@@ -523,6 +639,8 @@ export default function PaperPlanePrototype() {
     }
 
     function pause() {
+      arrowPull.current = null;
+      showPull(null);
       paused = !paused;
       setPaused(paused);
       last = 0;
@@ -539,8 +657,8 @@ export default function PaperPlanePrototype() {
       renderer.setSize(width, height);
       camera.aspect = width / height;
       const narrow = camera.aspect < .8;
-      camera.fov = narrow ? 65 : 49;
-      camera.lookAt(narrow ? -4.1 : -2.25, 1.54, -6.8);
+      camera.fov = narrow ? 64 : 48;
+      camera.lookAt(narrow ? -3.65 : -1.75, 1.59, -5.4);
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld();
       if (state.phase === 'ready' && targetIndex !== -1) positionMarker();
@@ -563,6 +681,16 @@ export default function PaperPlanePrototype() {
           }
           positionMarker();
           const age = time - readyAt;
+          updateAim(age);
+          plane.position.copy(launch);
+          plane.position.z += (pullShot.current?.power ?? 0) * .23;
+          if (pullShot.current && crosshair.current && targetIndex !== -1) {
+            const aim = pullShot.current;
+            const point = projectHead(targetIndex).project(camera);
+            crosshair.current.style.top = `${(1 - point.y) * 50}%`;
+            crosshair.current.dataset.aligned = String(directionError(aim.aimX) <= 1);
+          }
+          if (targetIndex !== -1) powerMeter.current?.style.setProperty('--ideal-power', `${idealPower() * 100}%`);
           if (state.working && age >= 8.55) {
             readyAt = time;
             state.watched = state.working = false;
@@ -571,6 +699,8 @@ export default function PaperPlanePrototype() {
             publish();
           } else if (!state.working && targetIndex !== -1) {
             if (age >= 7) {
+              arrowPull.current = null;
+              showPull(null);
               state.phase = 'caught';
               state.watched = true;
               plane.visible = false;
@@ -587,12 +717,13 @@ export default function PaperPlanePrototype() {
           plane.position.lerpVectors(mailOrigin, launch, eased);
           plane.position.y += Math.sin(Math.PI * eased) * .16;
           plane.rotation.set(.16 * (1 - eased), -.53 * (1 - eased), .28 * (1 - eased));
-          plane.scale.setScalar(.1 + .9 * eased);
+          plane.scale.setScalar(.08 + .54 * eased);
           if (fraction === 1) {
             targetIndex = findTarget();
             if (targetIndex !== -1) {
               state.phase = 'ready';
               readyAt = time;
+              aimPosition = 0;
               positionMarker();
               publish();
             }
@@ -600,9 +731,13 @@ export default function PaperPlanePrototype() {
         }
         if (state.phase === 'flying') {
           const fraction = clamp((time - flightStart) / flightDuration, 0, 1);
-          updateLanding();
+          if (!fixedFlight) updateLanding();
+          if (!fixedFlight && shotPoints === 0) {
+            if (Math.abs(missOffset) > .9) landing.z -= missOffset;
+            else landing.x += aimPosition < .5 ? -.95 : .95;
+          }
           previousFlightPosition.copy(plane.position);
-          plane.position.lerpVectors(launch, landing, fraction);
+          plane.position.lerpVectors(flightOrigin, landing, fraction);
           plane.position.y += Math.sin(fraction * Math.PI) * .56;
           flightDirection.copy(plane.position).sub(previousFlightPosition);
           if (flightDirection.lengthSq() > .000001) {
@@ -629,14 +764,14 @@ export default function PaperPlanePrototype() {
   },[]);
   const over = view.phase === 'finished' || view.phase === 'caught';
   const status = paused ? '잠깐 멈췄어요.'
-    : view.phase === 'mail' ? '동료가 돌아보기 전에 화살표를 눌러요.'
+    : view.phase === 'mail' ? '화살표를 아래로 당겼다가 놓아 날려요.'
     : view.phase === 'folding' || view.phase === 'result' ? '다음 메일을 준비하고 있어요.'
     : view.phase === 'flying' ? '날아가는 중…'
     : view.phase === 'caught' ? '동료와 눈이 마주쳤어요.'
     : view.phase === 'finished' ? ''
     : view.working ? '일하는 척하는 중. 동료가 지나갈 때까지 기다려요.'
     : view.watched ? '곧 이쪽을 봐요! 지금 날리거나 일하는 척해요.'
-    : '화살표가 있는 동료를 눌러요.';
+    : '당긴 채 좌우로 조준하고 놓아요.';
 
   return <main className={styles.game}>
     <header className={styles.header}>
@@ -650,7 +785,7 @@ export default function PaperPlanePrototype() {
       <div className={styles.score}>
         <strong>{view.score}</strong><span>점수 · {view.shots}/5번</span>
         {view.lastDeliveryPoints !== null && <span role="status" className={styles.deliveryFeedback}>
-          배달 성공! +{view.lastDeliveryPoints}
+          {view.lastDeliveryPoints > 0 ? `배달 성공! +${view.lastDeliveryPoints}` : '빗나갔어요'}
         </span>}
       </div>
     </div>
@@ -665,18 +800,32 @@ export default function PaperPlanePrototype() {
         if (!event.repeat) controls.current?.fire();
       }}>
       <div ref={host} className={styles.canvas}/>
+      <div ref={crosshair} className={styles.crosshair} aria-hidden="true" hidden/>
       <button ref={targetButton} className={styles.targetButton} type="button"
         aria-label="표시된 동료에게 메일 날리기" aria-disabled={paused} data-warning={view.watched}
+        onPointerDown={startArrowPull} onPointerMove={moveArrowPull} onPointerUp={finishArrowPull}
+        onPointerCancel={cancelArrowPull} onLostPointerCapture={cancelArrowPull}
         onClick={event => {
-          if (paused) return;
-          if (event.detail === 0) event.currentTarget.closest('section')?.focus();
+          if (paused || event.detail !== 0) return;
+          event.currentTarget.closest('section')?.focus();
           controls.current?.fire();
         }} hidden={view.phase !== 'ready' || view.working}>
         <span aria-hidden="true">▼</span>
       </button>
       {status && <div className={styles.instructions} data-danger={view.watched && !paused} aria-live="polite">{status}</div>}
+      {view.phase === 'ready' && !view.working && <div ref={aimMeter} className={styles.aimMeter} aria-hidden="true">
+        <span className={styles.meterLabel}>키보드 조준</span>
+        <span className={styles.aimZone}/>
+        <span className={styles.aimNeedle}/>
+      </div>}
+      {view.phase === 'ready' && !view.working && <div ref={powerMeter} className={styles.powerMeter} aria-hidden="true">
+        <span className={styles.meterLabel}>힘</span>
+        <span className={styles.powerFill}/>
+        <span className={styles.idealPower}/>
+      </div>}
       {over && <div className={styles.result}>
-        <span>{view.phase === 'caught' ? '들켰어요 · 게임 오버' : '메일 5통 배달 완료'}</span>
+        <span>{view.phase === 'caught' ? '들켰어요 · 게임 오버'
+          : stateDeliverySummary(view.delivered)}</span>
         <strong>{view.score}점</strong>
       </div>}
       {loadState === 'loading' && <div className={styles.result} role="status"><p>사무실을 준비하는 중이에요.</p></div>}
@@ -696,8 +845,12 @@ export default function PaperPlanePrototype() {
       </div>
     </section>
     <footer className={styles.footer}>
-      <span>화살표로 발사 · 키보드 Enter로 발사, F로 일하는 척</span>
+      <span>아래로 당겨 힘 조절 · 좌우로 조준 · 놓아서 발사 · Enter 적정 힘 발사</span>
       <button onClick={() => controls.current?.start()} disabled={unavailable}>처음부터</button>
     </footer>
   </main>;
+}
+
+function stateDeliverySummary(delivered: number) {
+  return delivered === 5 ? '메일 5통 배달 완료' : `메일 5통 중 ${delivered}통 배달`;
 }

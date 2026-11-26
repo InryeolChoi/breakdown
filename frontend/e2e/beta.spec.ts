@@ -57,16 +57,22 @@ test('the shelf remains usable when room loading fails or returns no rooms', asy
   await expect(page.getByRole('heading', {name: '명상', exact: true})).toBeVisible();
 });
 
-test('mail plane delivers a shot and returns to the game shelf', async ({page, isMobile}) => {
+test('mail plane delivers a shot and returns to the game shelf', async ({page, context, isMobile}) => {
   await page.goto('/games/mail-plane');
   await page.getByRole('button', {name: '시작', exact: true}).click({timeout: 60_000});
   const target = page.getByRole('button', {name: '표시된 동료에게 메일 날리기'});
   await expect(target).toBeVisible({timeout: 30_000});
   if (isMobile) {
     const bounds = await target.boundingBox();
-    expect(bounds).not.toBeNull();
-    await page.touchscreen.tap(bounds!.x + bounds!.width / 2, bounds!.y + 16);
+    if (!bounds) throw new Error('The target arrow is outside the viewport');
+    const point = {x: bounds.x + bounds.width / 2, y: bounds.y + 16};
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', {type: 'touchStart', touchPoints: [point]});
+    await cdp.send('Input.dispatchTouchEvent', {type: 'touchMove', touchPoints: [{x: point.x, y: point.y + 60}]});
+    await expect(page.locator('[data-aligned=true]:visible')).toBeVisible({timeout: 20_000});
+    await cdp.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
   } else {
+    await expect(page.locator('[data-aligned=true]')).toBeVisible({timeout: 20_000});
     await page.getByRole('region', {name: '메일비행기 게임'}).press('Enter');
   }
   await expect(page.getByText('점수 · 1/5번')).toBeVisible();
