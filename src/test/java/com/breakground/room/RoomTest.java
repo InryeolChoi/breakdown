@@ -4,10 +4,26 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 public class RoomTest {
+
+    @Test
+    void allDayEventOpensOnlyOnItsScheduledDate() {
+        LocalDate date = LocalDate.of(2026, 11, 29);
+        LocalDateTime opensAt = date.atStartOfDay();
+        LocalDateTime closesAt = date.plusDays(1).atStartOfDay();
+        Room room = Room.event("특별 이벤트", opensAt, closesAt);
+
+        assertFalse(room.isOpen(opensAt.minusNanos(1)));
+        assertTrue(room.isOpen(opensAt));
+        assertTrue(room.isOpen(closesAt.minusNanos(1)));
+        org.junit.jupiter.api.Assertions.assertEquals(closesAt, room.currentClosingTime(opensAt));
+        assertFalse(room.isOpen(closesAt));
+        assertFalse(room.isOpen(opensAt.plusWeeks(1)));
+    }
 
     @Test
     public void testRoom() {

@@ -43,11 +43,30 @@ public class Room {
         this.weekendOpen = weekendOpen;
     }
 
+    @Column(name = "event_starts_at")
+    private LocalDateTime eventStartsAt;
+
+    @Column(name = "event_ends_at")
+    private LocalDateTime eventEndsAt;
+
+    public static Room event(String name, LocalDateTime startsAt, LocalDateTime endsAt) {
+        if (!endsAt.isAfter(startsAt)) {
+            throw new IllegalArgumentException("종료 시각은 시작 시각보다 늦어야 합니다.");
+        }
+        Room room = new Room(name, startsAt.toLocalTime(), endsAt.toLocalTime(), false, false);
+        room.eventStartsAt = startsAt;
+        room.eventEndsAt = endsAt;
+        return room;
+    }
+
     protected Room() {
     }
 
     public boolean isOpen(LocalDateTime now) {
         LocalDate date = now.toLocalDate();
+        if (eventStartsAt != null) {
+            return !now.isBefore(eventStartsAt) && now.isBefore(eventEndsAt);
+        }
         LocalTime time = now.toLocalTime();
 
         if (openAt.equals(closeAt)) {
@@ -70,6 +89,9 @@ public class Room {
     public LocalDateTime currentClosingTime(LocalDateTime now) {
         if (!isOpen(now)) {
             throw new IllegalStateException("닫힌 방에는 현재 운영 구간이 없습니다.");
+        }
+        if (eventEndsAt != null) {
+            return eventEndsAt;
         }
         LocalDate closingDate = now.toLocalDate();
         if (openAt.isAfter(closeAt) && !now.toLocalTime().isBefore(openAt)) {

@@ -1,11 +1,13 @@
-export type Room = { id: number; name: string; openAt: string; closeAt: string };
+export type Room = { id: number; name: string; openAt: string; closeAt: string; eventStartsAt?: string | null; eventEndsAt?: string | null };
 export type User = { id: number; nickname: string; status: 'ACTIVE' | 'BANNED' };
 export type ChatMessage = { id: string; roomId: number; authorId: number; nickname: string; content: string; sentAt: string; expiresAt: string };
 export type ChatError = { type: 'ERROR'; status: number; message: string };
 export function isRoom(value: unknown): value is Room {
   if (!value || typeof value !== 'object') return false;
   const r = value as Room;
-  return Number.isInteger(r.id) && typeof r.name === 'string' && typeof r.openAt === 'string' && typeof r.closeAt === 'string';
+  return Number.isInteger(r.id) && typeof r.name === 'string' && typeof r.openAt === 'string' && typeof r.closeAt === 'string'
+    && (r.eventStartsAt == null || typeof r.eventStartsAt === 'string')
+    && (r.eventEndsAt == null || typeof r.eventEndsAt === 'string');
 }
 export function parseChat(raw: string): ChatMessage | ChatError {
   const value = JSON.parse(raw);
