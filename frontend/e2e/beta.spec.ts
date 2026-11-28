@@ -1,5 +1,66 @@
 import {expect, test} from '@playwright/test';
 
+test('a rejected chat message stays in the composer until a confirmed send', async ({page}) => {
+  await page.route('**/api/rooms', route => route.fulfill({
+    json: [{id: 1, name: '점심메뉴방', openAt: '10:00', closeAt: '11:30'}],
+  }));
+  await page.route('**/api/anonymoususer', route => route.fulfill({
+    json: {id: 1, nickname: '오리', status: 'ACTIVE'},
+  }));
+  const content = '안녕' + '😀'.repeat(138);
+  const sent: string[] = [];
+  let acknowledge: (() => void) | undefined;
+  await page.routeWebSocket('**/ws/rooms/1', socket => {
+    socket.onMessage(message => {
+      sent.push(String(message));
+      if (sent.length === 1) {
+        socket.send(JSON.stringify({type: 'ERROR', status: 429, message: '잠시 후 다시 보내 주세요.'}));
+        return;
+      }
+      if (sent.length === 2) {
+        acknowledge = () => socket.send(JSON.stringify({
+          id: '123e4567-e89b-12d3-a456-426614174000', roomId: 1, authorId: 1, nickname: '오리', content,
+          sentAt: '2026-11-24T11:00:00', expiresAt: '2026-11-24T11:40:00',
+        }));
+        return;
+      }
+      socket.send(JSON.stringify({type: 'ERROR', status: 403, message: '방 운영 시간이 끝났어요.'}));
+      void socket.close({code: 1008, reason: 'policy'});
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', {name: '채팅', exact: true}).click();
+  await page.getByRole('button', {name: '입장하기'}).click();
+  const composer = page.getByRole('textbox', {name: '메시지'});
+  await expect(composer).toBeEnabled();
+  const emptyConversation = page.getByText('아직 대화가 없어요.');
+  await expect(emptyConversation).toBeVisible();
+  await composer.fill(content + '!');
+  await composer.press('Enter');
+  await expect(page.getByText('메시지는 140자 이내로 입력해 주세요.')).toBeVisible();
+  await expect(composer).toHaveValue(content + '!');
+  expect(sent).toEqual([]);
+  await composer.fill(content);
+  await composer.dispatchEvent('keydown', {key: 'Enter', isComposing: true});
+  expect(sent).toEqual([]);
+  await composer.press('Enter');
+  await expect(page.getByText('잠시 후 다시 보내 주세요.')).toBeVisible();
+  await expect(composer).toHaveValue(content, {timeout: 1500});
+  await composer.press('Enter');
+  await expect.poll(() => sent.length).toBe(2);
+  expect(sent).toEqual([JSON.stringify({content}), JSON.stringify({content})]);
+  await composer.fill('다음 메시지');
+  acknowledge?.();
+  await expect(page.getByRole('log').getByText(content)).toBeVisible();
+  await expect(emptyConversation).toBeHidden();
+  await expect(composer).toHaveValue('다음 메시지');
+  await composer.press('Enter');
+  await expect(page.getByText('방 운영 시간이 끝났어요.')).toBeVisible();
+  await expect(composer).toBeDisabled();
+  await expect(composer).toHaveValue('다음 메시지');
+  expect(sent).toHaveLength(3);
+});
+
 test('café is usable before choosing chat or a game', async ({page}) => {
   await page.goto('/');
   await expect(page.getByRole('heading', {name: '잠깐 쉬어요.'})).toBeVisible();

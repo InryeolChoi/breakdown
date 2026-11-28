@@ -8,6 +8,7 @@ import GlacierAtmosphere from './GlacierAtmosphere';
 
 type Mode = 'demo' | 'live';
 type Phase = 'entry' | 'connecting' | 'connected' | 'closed';
+const SEND_CONFIRMATION_TIMEOUT_MS = 10_000;
 const activities = [
   { id: 'chat', label: '채팅', icon: '🍵' },
   { id: 'game', label: '게임', icon: '🍪' },
@@ -58,7 +59,8 @@ export default function Cafe({ variant, initialActivity = null }: {
   const [reportError, setReportError] = useState('');
   const [reportBusy, setReportBusy] = useState(false);
   const [reported, setReported] = useState<string[]>([]);
-  const [pending, setPending] = useState(0);
+  const [pending, setPending] = useState(false);
+  const pendingSend = useRef<{ content: string; onAccepted: () => void; timeout: ReturnType<typeof setTimeout> } | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const generation = useRef(0);
   const roomRequest = useRef(0);
@@ -116,12 +118,20 @@ export default function Cafe({ variant, initialActivity = null }: {
     }
   }, [activity]);
 
+  const finishSend = useCallback((accepted = false) => {
+    const submission = pendingSend.current;
+    pendingSend.current = null;
+    if (submission) clearTimeout(submission.timeout);
+    setPending(false);
+    if (accepted) submission?.onAccepted();
+  }, []);
+
   const disconnect = useCallback(() => {
     generation.current += 1;
     if (socket.current) { const ws = socket.current; socket.current = null; ws.close(1000, 'leaving'); }
     timers.current.forEach(clearTimeout); timers.current = [];
-    setPending(0);
-  }, []);
+    finishSend();
+  }, [finishSend]);
   const loadRooms = useCallback(async (nextMode: Mode, signal?: AbortSignal) => {
     const current = ++roomRequest.current;
     setRoomError('');
@@ -135,7 +145,13 @@ export default function Cafe({ variant, initialActivity = null }: {
     finally { if (!signal?.aborted && roomRequest.current === current) setLoading(false); }
   }, []);
   useEffect(() => { const controller = new AbortController(); void loadRooms(mode, controller.signal); return () => controller.abort(); }, [mode, loadRooms]);
-  useEffect(() => () => { generation.current += 1; socket.current?.close(); timers.current.forEach(clearTimeout); }, []);
+  useEffect(() => () => {
+    generation.current += 1;
+    socket.current?.close();
+    timers.current.forEach(clearTimeout);
+    if (pendingSend.current) clearTimeout(pendingSend.current.timeout);
+    pendingSend.current = null;
+  }, []);
   useEffect(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; }, [messages]);
   useEffect(() => {
     if (!reportTarget) return;
@@ -186,31 +202,41 @@ export default function Cafe({ variant, initialActivity = null }: {
         try {
           const data = parseChat(event.data);
           if ('type' in data) {
-            setNotice(data.message); setPending(0);
-            if (data.status === 401 || data.status === 403) { setPhase('closed'); ws.close(1008, 'policy'); }
-          } else if (data.roomId === room.id) { append(data); if (data.authorId === me.id) setPending(value => Math.max(0, value - 1)); }
+            setNotice(data.message); finishSend();
+            if (data.status === 401 || data.status === 403) setPhase('closed');
+          } else if (data.roomId === room.id) {
+            append(data);
+            if (data.authorId === me.id && data.content === pendingSend.current?.content) finishSend(true);
+          }
         } catch { setNotice('받은 메시지를 표시하지 못했어요.'); }
       };
       ws.onerror = () => { if (generation.current === current) setNotice('채팅에 연결하지 못했어요. 방 운영 상태와 서버 연결을 확인해 주세요.'); };
-      ws.onclose = event => { clearTimeout(timeout); if (generation.current !== current) return; setPhase('closed'); setPending(0); setNotice(old => old || (event.code === 1008 ? '서버 정책에 따라 연결이 종료됐어요.' : '연결이 종료됐어요. 다시 입장할 수 있어요.')); };
+      ws.onclose = event => { clearTimeout(timeout); if (generation.current !== current) return; setPhase('closed'); finishSend(); setNotice(old => old || (event.code === 1008 ? '서버 정책에 따라 연결이 종료됐어요.' : '연결이 종료됐어요. 다시 입장할 수 있어요.')); };
     } catch (error) { if (generation.current === current) { setNotice(error instanceof Error ? error.message : '입장하지 못했어요.'); setPhase('entry'); } }
   }
   function leave() { disconnect(); setPhase('entry'); setMessages([]); setNotice(''); setReportTarget(null); void loadRooms(mode); }
-  function send(draft: string): boolean {
-    if (phase !== 'connected' || !user || !activeRoom) return false;
-    const error = validateContent(draft); if (error) { setNotice(error); return false; }
+  function send(draft: string, onAccepted: () => void) {
+    if (phase !== 'connected' || !user || !activeRoom || pendingSend.current) return;
+    const error = validateContent(draft); if (error) { setNotice(error); return; }
     const content = draft.trim(); setNotice('');
     if (mode === 'demo') {
       append(sampleMessage(activeRoom.id, user.id, user.nickname, content));
       const current = generation.current;
       const reply = DEMO_REPLIES[messages.filter(item => item.authorId === user.id).length % DEMO_REPLIES.length];
       timers.current.push(setTimeout(() => { if (generation.current === current) append(sampleMessage(activeRoom.id, 2, '체험 도우미', reply)); }, 650));
+      onAccepted();
     } else {
-      if (socket.current?.readyState !== WebSocket.OPEN) { setNotice('연결이 끊겼어요. 다시 입장해 주세요.'); setPhase('closed'); return false; }
-      try { socket.current.send(JSON.stringify({ content })); setPending(value => value + 1); }
-      catch { setNotice('전송하지 못했어요. 연결을 확인해 주세요.'); return false; }
+      if (socket.current?.readyState !== WebSocket.OPEN) { setNotice('연결이 끊겼어요. 다시 입장해 주세요.'); setPhase('closed'); return; }
+      try {
+        socket.current.send(JSON.stringify({ content }));
+        const timeout = setTimeout(() => {
+          finishSend();
+          setNotice('전송 확인을 받지 못했어요. 대화를 확인한 뒤 다시 보내 주세요.');
+        }, SEND_CONFIRMATION_TIMEOUT_MS);
+        pendingSend.current = { content, onAccepted, timeout };
+        setPending(true);
+      } catch { setNotice('전송하지 못했어요. 연결을 확인해 주세요.'); }
     }
-    return true;
   }
   async function report(event: FormEvent) {
     event.preventDefault(); if (!reportTarget || !activeRoom || reportBusy) return;
@@ -309,7 +335,8 @@ export default function Cafe({ variant, initialActivity = null }: {
         {minimal && mode === 'demo' && <p className="entry-note">예시 대화예요. 입력한 내용은 저장하지 않아요.</p>}
       </form> : <div className="chat-panel"><div className="chat-heading"><div><h2>{activeRoom?.name}</h2><p><strong>{user?.nickname}</strong>으로 쉬는 중</p></div><button className="leave" onClick={leave}>{phase === 'closed' ? '다시 입장' : '나가기'}</button></div>
         <div className="transcript" ref={transcript} role="log" aria-label="대화 내용" aria-live="polite" aria-relevant="additions text">
-          <p className="chat-welcome">{mode === 'demo' ? '체험 도우미가 예시 답변을 보내요.' : '입장 후 도착하는 대화부터 보여요.'}</p>
+          {mode === 'demo' && <p className="chat-welcome">체험 도우미가 예시 답변을 보내요.</p>}
+          {mode === 'live' && messages.length === 0 && <p className="chat-welcome">아직 대화가 없어요. 가볍게 첫 인사를 남겨보세요.</p>}
           {messages.map(message => <article className={`message ${message.authorId === user?.id ? 'mine' : ''}`} key={message.id}><div className="message-meta"><strong>{message.authorId === user?.id ? `${message.nickname} (나)` : message.nickname}</strong><time>{displayTime(message.sentAt)}</time>{message.authorId !== user?.id && <button disabled={reported.includes(message.id) || phase !== 'connected'} onClick={() => { setReportTarget(message); setReason(''); setReportError(''); setNotice(''); }}>{reported.includes(message.id) ? '신고됨' : '신고'}</button>}</div><p>{message.content}</p></article>)}
         </div>
         <ChatComposer phase={phase} pending={pending} onSend={send} />
@@ -346,23 +373,30 @@ export default function Cafe({ variant, initialActivity = null }: {
 
 function ChatComposer({ phase, pending, onSend }: {
   phase: Phase;
-  pending: number;
-  onSend: (draft: string) => boolean;
+  pending: boolean;
+  onSend: (draft: string, onAccepted: () => void) => void;
 }) {
   const [draft, setDraft] = useState('');
+  const draftRevision = useRef(0);
   const connected = phase === 'connected';
   const trimmed = draft.trim();
 
   return <>
     <form className="composer" onSubmit={event => {
       event.preventDefault();
-      if (onSend(draft)) setDraft('');
+      const submittedRevision = draftRevision.current;
+      onSend(draft, () => {
+        if (draftRevision.current === submittedRevision) setDraft('');
+      });
     }}>
       <label className="sr-only" htmlFor="message">메시지</label>
       <textarea
         id="message"
         value={draft}
-        onChange={event => setDraft(event.target.value)}
+        onChange={event => {
+          draftRevision.current += 1;
+          setDraft(event.target.value);
+        }}
         placeholder={phase === 'closed' ? '연결이 종료됐어요.' : '가볍게 한마디 남겨보세요'}
         disabled={!connected}
         rows={1}
@@ -373,11 +407,11 @@ function ChatComposer({ phase, pending, onSend }: {
           }
         }}
       />
-      <button className="primary-action" type="submit" disabled={!connected || !trimmed}>보내기</button>
+      <button className="primary-action" type="submit" disabled={!connected || pending || !trimmed}>보내기</button>
     </form>
     <div className="composer-meta">
       <span>{[...trimmed].length}/140</span>
-      <span>{pending ? `전송 확인 중 ${pending}건` : 'Enter 전송 · Shift + Enter 줄바꿈'}</span>
+      <span>{pending ? '전송 확인 중' : 'Enter 전송 · Shift + Enter 줄바꿈'}</span>
     </div>
   </>;
 }
