@@ -289,7 +289,7 @@ export default function Cafe({ variant, initialActivity = null }: {
             : rooms.length ? <div className={minimal ? "room-options lobby-rooms" : "room-options"}>
                 {rooms.map(room => <label key={room.id} className={`room-option ${selected === room.id ? 'selected' : ''}`}>
                   <input type="radio" name="room" value={room.id} checked={selected === room.id} onChange={() => setSelected(room.id)}/>
-                  <span className="room-name"><strong>{room.name}</strong><small>{room.openAt.slice(0, 5)}–{room.closeAt.slice(0, 5)}</small></span>
+                  <span className="room-name"><strong>{room.name}</strong><small>{room.eventEndsAt ? `종료 ${room.eventEndsAt.slice(5, 16).replace("T", " ")}` : `${room.openAt.slice(0, 5)}–${room.closeAt.slice(0, 5)}`}</small></span>
                   {minimal && <span className="room-signal" aria-hidden="true" />}
                 </label>)}
               </div>
